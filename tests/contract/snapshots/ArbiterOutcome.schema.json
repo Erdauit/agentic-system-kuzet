@@ -1,0 +1,134 @@
+{
+  "$defs": {
+    "ArbiterMode": {
+      "enum": [
+        "shadow",
+        "assist"
+      ],
+      "title": "ArbiterMode",
+      "type": "string"
+    },
+    "FailOpenReason": {
+      "enum": [
+        "timeout",
+        "invalid_output",
+        "inconsistent",
+        "unavailable",
+        "overloaded"
+      ],
+      "title": "FailOpenReason",
+      "type": "string"
+    },
+    "HazardAssessment": {
+      "enum": [
+        "NONE",
+        "LOW",
+        "CRITICAL"
+      ],
+      "title": "HazardAssessment",
+      "type": "string"
+    },
+    "PriorityChange": {
+      "description": "VLM может только понизить или повысить приоритет. Варианта SUPPRESS нет намеренно.",
+      "enum": [
+        "NONE",
+        "LOWER",
+        "RAISE"
+      ],
+      "title": "PriorityChange",
+      "type": "string"
+    },
+    "VLMVerdict": {
+      "additionalProperties": false,
+      "description": "Ответ VLM. Числового поля confidence нет: самооценка VLM не является вероятностью.",
+      "properties": {
+        "consistency_ok": {
+          "title": "Consistency Ok",
+          "type": "boolean"
+        },
+        "hazard_assessment": {
+          "$ref": "#/$defs/HazardAssessment"
+        },
+        "reasoning": {
+          "maxLength": 2000,
+          "minLength": 1,
+          "title": "Reasoning",
+          "type": "string"
+        },
+        "scene_description": {
+          "maxLength": 1000,
+          "minLength": 1,
+          "title": "Scene Description",
+          "type": "string"
+        },
+        "suggested_priority_change": {
+          "$ref": "#/$defs/PriorityChange"
+        }
+      },
+      "required": [
+        "scene_description",
+        "hazard_assessment",
+        "suggested_priority_change",
+        "reasoning",
+        "consistency_ok"
+      ],
+      "title": "VLMVerdict",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "applied_priority_change": {
+      "$ref": "#/$defs/PriorityChange"
+    },
+    "decided_at": {
+      "format": "date-time",
+      "title": "Decided At",
+      "type": "string"
+    },
+    "fail_open_reason": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/FailOpenReason"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "incident_id": {
+      "format": "uuid",
+      "title": "Incident Id",
+      "type": "string"
+    },
+    "latency_seconds": {
+      "minimum": 0,
+      "title": "Latency Seconds",
+      "type": "number"
+    },
+    "mode": {
+      "$ref": "#/$defs/ArbiterMode"
+    },
+    "verdict": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/VLMVerdict"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    }
+  },
+  "required": [
+    "incident_id",
+    "mode",
+    "applied_priority_change",
+    "latency_seconds",
+    "decided_at"
+  ],
+  "title": "ArbiterOutcome",
+  "type": "object"
+}

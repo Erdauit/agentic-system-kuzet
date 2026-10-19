@@ -1,0 +1,155 @@
+{
+  "$defs": {
+    "CameraHealthStatus": {
+      "enum": [
+        "ok",
+        "degraded",
+        "down",
+        "unknown"
+      ],
+      "title": "CameraHealthStatus",
+      "type": "string"
+    },
+    "CameraIssue": {
+      "description": "Причины деградации камеры (SPEC.md §5.9).",
+      "enum": [
+        "stream_down",
+        "low_fps",
+        "reconnecting",
+        "decode_errors",
+        "frozen",
+        "black",
+        "overexposed",
+        "blur",
+        "occluded",
+        "view_shift"
+      ],
+      "title": "CameraIssue",
+      "type": "string"
+    }
+  },
+  "additionalProperties": false,
+  "description": "Снимок здоровья камеры. Публикуется каждые camera_health.check_interval_s секунд.",
+  "properties": {
+    "black": {
+      "title": "Black",
+      "type": "boolean"
+    },
+    "camera_id": {
+      "pattern": "^[a-z0-9][a-z0-9_\\-]{0,63}$",
+      "title": "Camera Id",
+      "type": "string"
+    },
+    "checked_at": {
+      "format": "date-time",
+      "title": "Checked At",
+      "type": "string"
+    },
+    "decode_errors_total": {
+      "minimum": 0,
+      "title": "Decode Errors Total",
+      "type": "integer"
+    },
+    "fps_in": {
+      "minimum": 0,
+      "title": "Fps In",
+      "type": "number"
+    },
+    "fps_planned": {
+      "minimum": 0,
+      "title": "Fps Planned",
+      "type": "number"
+    },
+    "fps_processed": {
+      "minimum": 0,
+      "title": "Fps Processed",
+      "type": "number"
+    },
+    "frozen": {
+      "title": "Frozen",
+      "type": "boolean"
+    },
+    "issues": {
+      "items": {
+        "$ref": "#/$defs/CameraIssue"
+      },
+      "title": "Issues",
+      "type": "array"
+    },
+    "occluded_ratio": {
+      "anyOf": [
+        {
+          "maximum": 1.0,
+          "minimum": 0.0,
+          "type": "number"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Occluded Ratio"
+    },
+    "overexposed": {
+      "title": "Overexposed",
+      "type": "boolean"
+    },
+    "reconnects_total": {
+      "minimum": 0,
+      "title": "Reconnects Total",
+      "type": "integer"
+    },
+    "sharpness_ratio": {
+      "anyOf": [
+        {
+          "minimum": 0,
+          "type": "number"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "Резкость относительно базовой линии; None — нет базовой",
+      "title": "Sharpness Ratio"
+    },
+    "status": {
+      "$ref": "#/$defs/CameraHealthStatus"
+    },
+    "stream_alive": {
+      "title": "Stream Alive",
+      "type": "boolean"
+    },
+    "view_shift_score": {
+      "anyOf": [
+        {
+          "maximum": 1.0,
+          "minimum": 0.0,
+          "type": "number"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "0 — ракурс совпадает со снапшотом калибровки, 1 — полный сдвиг",
+      "title": "View Shift Score"
+    }
+  },
+  "required": [
+    "camera_id",
+    "checked_at",
+    "status",
+    "stream_alive",
+    "fps_in",
+    "fps_planned",
+    "fps_processed",
+    "reconnects_total",
+    "decode_errors_total",
+    "frozen",
+    "black",
+    "overexposed"
+  ],
+  "title": "CameraHealth",
+  "type": "object"
+}

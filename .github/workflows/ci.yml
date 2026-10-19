@@ -1,0 +1,89 @@
+# CI Qoima Vision (SPEC.md §12, Фаза 0): ruff, mypy (strict для shared/), pytest,
+# лицензионный гейт Python и npm, сборка UI, проверка compose и install.sh.
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  python:
+    name: Python — линтеры, типы, тесты, лицензии
+    runs-on: ubuntu-24.04
+    services:
+      postgres:
+        image: postgres:16.15-bookworm
+        env:
+          POSTGRES_USER: qoima
+          POSTGRES_PASSWORD: ci-only-not-a-secret
+          POSTGRES_DB: qoima_test
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U qoima -d qoima_test"
+          --health-interval 5s --health-timeout 3s --health-retries 20
+      valkey:
+        image: valkey/valkey:8.1.10
+        ports: ["6379:6379"]
+        options: >-
+          --health-cmd "valkey-cli ping"
+          --health-interval 5s --health-timeout 3s --health-retries 20
+    env:
+      QOIMA_TEST_DATABASE_URL: postgresql+asyncpg://qoima:ci-only-not-a-secret@127.0.0.1:5432/qoima_test
+      QOIMA_TEST_VALKEY_URL: valkey://127.0.0.1:6379/0
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+        with:
+          version: "0.12.3"
+          python-version: "3.12"
+          enable-cache: true
+      - name: Окружение (uv.lock)
+        run: uv sync --frozen
+      - name: Ruff
+        run: |
+          uv run ruff check src tests
+          uv run ruff format --check src tests
+      - name: Mypy
+        run: make typecheck
+      - name: Тесты (юнит, контрактные, интеграционные)
+        run: uv run pytest
+      - name: Лицензионный гейт — Python
+        run: uv run qoima-license-gate python
+      - name: Лицензионный гейт — npm
+        run: uv run qoima-license-gate npm ui/package-lock.json
+
+  ui:
+    name: UI — типы и сборка
+    runs-on: ubuntu-24.04
+    defaults:
+      run:
+        working-directory: ui
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22.23"
+          cache: npm
+          cache-dependency-path: ui/package-lock.json
+      - run: npm ci --no-audit --no-fund
+      - run: npm run build
+
+  deploy-config:
+    name: Compose и install.sh
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: docker compose config (все профили)
+        run: make compose-config
+      - name: install.sh — синтаксис и shellcheck
+        run: |
+          bash -n install.sh
+          shellcheck install.sh

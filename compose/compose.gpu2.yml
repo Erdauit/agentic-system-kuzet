@@ -1,0 +1,81 @@
+# Профиль: 2 GPU — GPU0: realtime + Triton (+ llm с Фазы 4); GPU1: worker-gpu — обучение, авторазметка, эмбеддинги (SPEC.md §4.1).
+# Подключается автоматически командой `qoima up` по числу GPU (nvidia-smi).
+
+x-gpu-env: &gpu-env
+  QOIMA_REQUIRE_GPU: "1"
+  # video — нужен для NVDEC (аппаратное декодирование, SPEC.md §5.3).
+  NVIDIA_DRIVER_CAPABILITIES: compute,utility,video
+
+services:
+  vision-pipeline:
+    environment: *gpu-env
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - {driver: nvidia, device_ids: ["0"], capabilities: [gpu]}
+
+  worker-gpu:
+    environment: *gpu-env
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - {driver: nvidia, device_ids: ["1"], capabilities: [gpu]}
+
+  triton:
+    image: nvcr.io/nvidia/tritonserver:26.08-py3
+    restart: unless-stopped
+    logging:
+      driver: json-file
+      options: {max-size: "50m", max-file: "5"}
+    networks: [backend]
+    # explicit: модели загружаются и выгружаются по команде Deployer (hot-load, SPEC.md §4).
+    command:
+      - tritonserver
+      - --model-repository=/models
+      - --model-control-mode=explicit
+      - --strict-readiness=true
+      - --allow-metrics=true
+    shm_size: 1g
+    volumes:
+      - ${QOIMA_DATA_ROOT}/models/triton:/models
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - {driver: nvidia, device_ids: ["0"], capabilities: [gpu]}
+    healthcheck:
+      test: ["CMD", "python3", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/v2/health/ready', timeout=3)"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 60s
+
+  dcgm-exporter:
+    image: nvidia/dcgm-exporter:4.6.1-4.8.4
+    restart: unless-stopped
+    logging:
+      driver: json-file
+      options: {max-size: "20m", max-file: "3"}
+    networks: [backend]
+    cap_add: [SYS_ADMIN]
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - {driver: nvidia, count: all, capabilities: [gpu]}
+    healthcheck:
+      test: ["CMD", "bash", "-c", "exec 3<>/dev/tcp/127.0.0.1/9400"]
+      interval: 15s
+      timeout: 5s
+      retries: 4
+
+  core-api:
+    environment:
+      QOIMA_TRITON_URL: http://triton:8000
+
+  prometheus:
+    volumes:
+      - ../configs/prometheus/prometheus.gpu.yml:/etc/prometheus/prometheus.yml:ro
+      - ../configs/prometheus/rules.gpu.yml:/etc/prometheus/rules.gpu.yml:ro

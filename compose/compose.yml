@@ -1,0 +1,248 @@
+# Qoima Vision — базовый compose (один узел). SPEC.md §4.
+#
+# Запуск — только через CLI: `qoima up` сам добавит compose.gpu1.yml / compose.gpu2.yml
+# по числу GPU и compose.engineering.yml по флагу --engineering.
+#
+# Переменные (выставляет qoima up):
+#   QOIMA_DATA_ROOT    — каталог данных на хосте (/var/lib/qoima)
+#   QOIMA_SECRETS_DIR  — каталог секретов (.secrets/, генерирует install.sh)
+#   QOIMA_VERSION      — тег образов Qoima
+#   QOIMA_HTTPS_PORT   — порт UI/API на хосте (443)
+#
+# Сети: backend — internal (без выхода наружу, SPEC.md §10); edge — только для сервисов,
+# которым нужен внешний доступ: core-api (UI/API для браузера) и mediamtx (камеры в сети завода).
+# vision-pipeline ходит к камерам только через MediaMTX.
+
+name: qoima
+
+x-logging: &logging
+  # Структурированные JSON-логи в stdout, ротация средствами Docker.
+  driver: json-file
+  options:
+    max-size: "50m"
+    max-file: "5"
+
+x-qoima-env: &qoima-env
+  QOIMA_CONFIG_DIR: /etc/qoima/configs
+  QOIMA_LOG_LEVEL: ${QOIMA_LOG_LEVEL:-INFO}
+  QOIMA_VALKEY_HOST: valkey
+  QOIMA_VALKEY_PASSWORD_FILE: /run/secrets/valkey_password
+  QOIMA_DB_HOST: postgres
+  QOIMA_DB_NAME: qoima
+  QOIMA_DB_USER: qoima
+  QOIMA_DB_PASSWORD_FILE: /run/secrets/postgres_password
+
+x-service-healthcheck: &service-healthcheck
+  test: ["CMD", "python", "-m", "shared.telemetry.probe", "http://127.0.0.1:8080/readyz"]
+  interval: 10s
+  timeout: 5s
+  retries: 6
+  start_period: 20s
+
+services:
+  postgres:
+    image: postgres:16.15-bookworm
+    restart: unless-stopped
+    logging: *logging
+    networks: [backend]
+    environment:
+      POSTGRES_DB: qoima
+      POSTGRES_USER: qoima
+      POSTGRES_PASSWORD_FILE: /run/secrets/postgres_password
+    secrets: [postgres_password]
+    volumes:
+      - ${QOIMA_DATA_ROOT:?QOIMA_DATA_ROOT не задан — запускайте через qoima up}/postgres:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U qoima -d qoima"]
+      interval: 5s
+      timeout: 3s
+      retries: 12
+      start_period: 10s
+
+  valkey:
+    image: valkey/valkey:8.1.10
+    restart: unless-stopped
+    logging: *logging
+    networks: [backend]
+    secrets: [valkey_password]
+    # Пароль читается из секрета до запуска; docker-entrypoint.sh затем понижает права до
+    # пользователя valkey. appendonly — очереди событий переживают рестарт.
+    entrypoint:
+      - sh
+      - -c
+      - exec docker-entrypoint.sh valkey-server --requirepass "$$(cat /run/secrets/valkey_password)" --appendonly yes --save ""
+    volumes:
+      - ${QOIMA_DATA_ROOT}/valkey:/data
+    healthcheck:
+      test: ["CMD-SHELL", "VALKEYCLI_AUTH=\"$$(cat /run/secrets/valkey_password)\" REDISCLI_AUTH=\"$$(cat /run/secrets/valkey_password)\" valkey-cli ping | grep -q PONG"]
+      interval: 5s
+      timeout: 3s
+      retries: 12
+
+  qdrant:
+    image: qdrant/qdrant:v1.19.1
+    restart: unless-stopped
+    logging: *logging
+    networks: [backend]
+    environment:
+      QDRANT__TELEMETRY_DISABLED: "true"   # никаких исходящих соединений (SPEC.md §10)
+    volumes:
+      - ${QOIMA_DATA_ROOT}/qdrant:/qdrant/storage
+    healthcheck:
+      # В образе Qdrant нет curl/wget — проверяем /readyz через bash /dev/tcp.
+      test: ["CMD", "bash", "-c", "exec 3<>/dev/tcp/127.0.0.1/6333 && printf 'GET /readyz HTTP/1.0\\r\\n\\r\\n' >&3 && grep -q ' 200 ' <&3"]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+      start_period: 10s
+
+  mediamtx:
+    image: bluenviron/mediamtx:1.21.2-ffmpeg
+    restart: unless-stopped
+    logging: *logging
+    networks: [backend, edge]
+    volumes:
+      - ../configs/mediamtx.yml:/mediamtx.yml:ro
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:9997/v3/paths/list"]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+
+  core-api:
+    image: qoima/core-api:${QOIMA_VERSION:-dev}
+    build:
+      context: ..
+      dockerfile: docker/core-api.Dockerfile
+    restart: unless-stopped
+    logging: *logging
+    networks: [backend, edge]
+    ports:
+      - "${QOIMA_HTTPS_PORT:-443}:8443"
+    environment:
+      <<: *qoima-env
+      QOIMA_PORT: "8443"
+      QOIMA_TLS_CERT_FILE: /run/secrets/tls_cert
+      QOIMA_TLS_KEY_FILE: /run/secrets/tls_key
+      QOIMA_UI_DIR: /app/ui
+      QOIMA_QDRANT_URL: http://qdrant:6333
+      QOIMA_MEDIAMTX_API_URL: http://mediamtx:9997
+      QOIMA_SERVICE_URLS: vision-pipeline=http://vision-pipeline:8080,agents=http://agents:8080,worker-gpu=http://worker-gpu:8080
+    secrets: [postgres_password, valkey_password, tls_cert, tls_key]
+    volumes:
+      - ../configs:/etc/qoima/configs:ro
+      - ${QOIMA_DATA_ROOT}:/var/lib/qoima
+    depends_on:
+      postgres: {condition: service_healthy}
+      valkey: {condition: service_healthy}
+    healthcheck:
+      test: ["CMD", "python", "-m", "shared.telemetry.probe", "https://127.0.0.1:8443/api/v1/healthz", "--insecure-localhost"]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+      start_period: 30s
+
+  vision-pipeline:
+    image: qoima/vision-pipeline:${QOIMA_VERSION:-dev}
+    build:
+      context: ..
+      dockerfile: docker/vision-pipeline.Dockerfile
+    restart: unless-stopped
+    logging: *logging
+    networks: [backend]   # без edge: к камерам — только через MediaMTX
+    environment:
+      <<: *qoima-env
+    secrets: [valkey_password]
+    volumes:
+      - ../configs:/etc/qoima/configs:ro
+      - ${QOIMA_DATA_ROOT}:/var/lib/qoima
+    depends_on:
+      valkey: {condition: service_healthy}
+      mediamtx: {condition: service_healthy}
+    healthcheck: *service-healthcheck
+
+  agents:
+    image: qoima/agents:${QOIMA_VERSION:-dev}
+    build:
+      context: ..
+      dockerfile: docker/agents.Dockerfile
+    restart: unless-stopped
+    logging: *logging
+    networks: [backend]
+    environment:
+      <<: *qoima-env
+    secrets: [postgres_password, valkey_password]
+    volumes:
+      - ../configs:/etc/qoima/configs:ro
+    depends_on:
+      postgres: {condition: service_healthy}
+      valkey: {condition: service_healthy}
+    healthcheck: *service-healthcheck
+
+  worker-gpu:
+    image: qoima/worker-gpu:${QOIMA_VERSION:-dev}
+    build:
+      context: ..
+      dockerfile: docker/worker-gpu.Dockerfile
+    restart: unless-stopped
+    logging: *logging
+    networks: [backend]
+    environment:
+      <<: *qoima-env
+    secrets: [valkey_password]
+    volumes:
+      - ../configs:/etc/qoima/configs:ro
+      - ${QOIMA_DATA_ROOT}:/var/lib/qoima
+    depends_on:
+      valkey: {condition: service_healthy}
+    healthcheck: *service-healthcheck
+
+  prometheus:
+    image: prom/prometheus:v3.15.0-busybox
+    restart: unless-stopped
+    logging: *logging
+    networks: [backend]
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --storage.tsdb.path=/prometheus
+      - --storage.tsdb.retention.time=30d   # как и клипы — 30 дней (SPEC.md §7)
+    volumes:
+      - ../configs/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ${QOIMA_DATA_ROOT}/prometheus:/prometheus
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:9090/-/ready"]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+
+  node-exporter:
+    image: prom/node-exporter:v1.12.1-busybox
+    restart: unless-stopped
+    logging: *logging
+    networks: [backend]
+    pid: host
+    command: ["--path.rootfs=/host"]
+    volumes:
+      # Без rslave: Docker Desktop его не поддерживает, а тома данных Qoima монтируются до старта
+      # контейнера, поэтому распространение новых точек монтирования не требуется.
+      - /:/host:ro
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:9100/metrics"]
+      interval: 15s
+      timeout: 5s
+      retries: 4
+
+networks:
+  backend:
+    internal: true
+  edge: {}
+
+secrets:
+  postgres_password:
+    file: ${QOIMA_SECRETS_DIR:-../.secrets}/postgres_password
+  valkey_password:
+    file: ${QOIMA_SECRETS_DIR:-../.secrets}/valkey_password
+  tls_cert:
+    file: ${QOIMA_SECRETS_DIR:-../.secrets}/tls.crt
+  tls_key:
+    file: ${QOIMA_SECRETS_DIR:-../.secrets}/tls.key

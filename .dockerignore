@@ -1,0 +1,20 @@
+# Секреты и данные никогда не попадают в контекст сборки образов.
+.secrets
+.data
+**/.env
+# Окружения и кэши
+.venv
+.venv-cli
+**/__pycache__
+**/*.pyc
+.mypy_cache
+.ruff_cache
+.pytest_cache
+ui/node_modules
+ui/dist
+# Тяжёлое и не нужное в образах
+.git
+models/engines
+samples
+tests
+docs

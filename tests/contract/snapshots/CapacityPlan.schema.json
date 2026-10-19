@@ -1,0 +1,327 @@
+{
+  "$defs": {
+    "CameraAllocation": {
+      "additionalProperties": false,
+      "properties": {
+        "camera_id": {
+          "pattern": "^[a-z0-9][a-z0-9_\\-]{0,63}$",
+          "title": "Camera Id",
+          "type": "string"
+        },
+        "fps_active": {
+          "description": "FPS при наличии движения",
+          "exclusiveMinimum": 0,
+          "title": "Fps Active",
+          "type": "number"
+        },
+        "fps_idle": {
+          "description": "«Сторожевой» FPS без движения",
+          "exclusiveMinimum": 0,
+          "title": "Fps Idle",
+          "type": "number"
+        },
+        "gpu_index": {
+          "minimum": 0,
+          "title": "Gpu Index",
+          "type": "integer"
+        },
+        "scenario": {
+          "$ref": "#/$defs/ScenarioKind"
+        },
+        "target_fps": {
+          "description": "Целевой FPS сценария из конфига",
+          "exclusiveMinimum": 0,
+          "title": "Target Fps",
+          "type": "number"
+        }
+      },
+      "required": [
+        "camera_id",
+        "scenario",
+        "fps_active",
+        "fps_idle",
+        "target_fps",
+        "gpu_index"
+      ],
+      "title": "CameraAllocation",
+      "type": "object"
+    },
+    "FitVerdict": {
+      "enum": [
+        "fits",
+        "fits_with_limitations",
+        "does_not_fit"
+      ],
+      "title": "FitVerdict",
+      "type": "string"
+    },
+    "GPUInfo": {
+      "additionalProperties": false,
+      "properties": {
+        "cuda_version": {
+          "minLength": 1,
+          "title": "Cuda Version",
+          "type": "string"
+        },
+        "driver_version": {
+          "minLength": 1,
+          "title": "Driver Version",
+          "type": "string"
+        },
+        "index": {
+          "minimum": 0,
+          "title": "Index",
+          "type": "integer"
+        },
+        "name": {
+          "minLength": 1,
+          "title": "Name",
+          "type": "string"
+        },
+        "nvdec_available": {
+          "title": "Nvdec Available",
+          "type": "boolean"
+        },
+        "vram_total_mb": {
+          "exclusiveMinimum": 0,
+          "title": "Vram Total Mb",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "index",
+        "name",
+        "vram_total_mb",
+        "nvdec_available",
+        "driver_version",
+        "cuda_version"
+      ],
+      "title": "GPUInfo",
+      "type": "object"
+    },
+    "ScenarioKind": {
+      "description": "Сценарии детекции (SPEC.md §5.8). Имена совпадают с файлами configs/scenarios/*.yaml.",
+      "enum": [
+        "fall",
+        "red_zone",
+        "smoke_fire"
+      ],
+      "title": "ScenarioKind",
+      "type": "string"
+    },
+    "ThresholdPair": {
+      "additionalProperties": false,
+      "properties": {
+        "t_high": {
+          "maximum": 1.0,
+          "minimum": 0.0,
+          "title": "T High",
+          "type": "number"
+        },
+        "t_low": {
+          "maximum": 1.0,
+          "minimum": 0.0,
+          "title": "T Low",
+          "type": "number"
+        }
+      },
+      "required": [
+        "t_low",
+        "t_high"
+      ],
+      "title": "ThresholdPair",
+      "type": "object"
+    },
+    "VlmCapacity": {
+      "additionalProperties": false,
+      "properties": {
+        "expected_rps": {
+          "description": "Ожидаемый поток запросов арбитру",
+          "minimum": 0,
+          "title": "Expected Rps",
+          "type": "number"
+        },
+        "max_load_ratio": {
+          "description": "Допустимая доля загрузки (по умолчанию 0.7)",
+          "maximum": 1.0,
+          "minimum": 0.0,
+          "title": "Max Load Ratio",
+          "type": "number"
+        },
+        "measured_rps": {
+          "description": "Измеренная пропускная способность VLM, запросов/с",
+          "exclusiveMinimum": 0,
+          "title": "Measured Rps",
+          "type": "number"
+        }
+      },
+      "required": [
+        "measured_rps",
+        "expected_rps",
+        "max_load_ratio"
+      ],
+      "title": "VlmCapacity",
+      "type": "object"
+    },
+    "VramBudget": {
+      "additionalProperties": false,
+      "properties": {
+        "gpu_index": {
+          "minimum": 0,
+          "title": "Gpu Index",
+          "type": "integer"
+        },
+        "llm_mb": {
+          "minimum": 0,
+          "title": "Llm Mb",
+          "type": "integer"
+        },
+        "pipeline_mb": {
+          "minimum": 0,
+          "title": "Pipeline Mb",
+          "type": "integer"
+        },
+        "reserve_mb": {
+          "minimum": 0,
+          "title": "Reserve Mb",
+          "type": "integer"
+        },
+        "total_mb": {
+          "exclusiveMinimum": 0,
+          "title": "Total Mb",
+          "type": "integer"
+        },
+        "triton_mb": {
+          "minimum": 0,
+          "title": "Triton Mb",
+          "type": "integer"
+        },
+        "worker_mb": {
+          "minimum": 0,
+          "title": "Worker Mb",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "gpu_index",
+        "total_mb",
+        "pipeline_mb",
+        "triton_mb",
+        "llm_mb",
+        "worker_mb",
+        "reserve_mb"
+      ],
+      "title": "VramBudget",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "allocations": {
+      "items": {
+        "$ref": "#/$defs/CameraAllocation"
+      },
+      "title": "Allocations",
+      "type": "array"
+    },
+    "backend": {
+      "enum": [
+        "lite",
+        "deepstream"
+      ],
+      "title": "Backend",
+      "type": "string"
+    },
+    "benchmark_id": {
+      "description": "Прогон `qoima bench`, на котором основан план",
+      "minLength": 1,
+      "title": "Benchmark Id",
+      "type": "string"
+    },
+    "created_at": {
+      "format": "date-time",
+      "title": "Created At",
+      "type": "string"
+    },
+    "gpus": {
+      "items": {
+        "$ref": "#/$defs/GPUInfo"
+      },
+      "minItems": 1,
+      "title": "Gpus",
+      "type": "array"
+    },
+    "gray_zone": {
+      "additionalProperties": {
+        "$ref": "#/$defs/ThresholdPair"
+      },
+      "propertyNames": {
+        "$ref": "#/$defs/ScenarioKind"
+      },
+      "title": "Gray Zone",
+      "type": "object"
+    },
+    "id": {
+      "format": "uuid",
+      "title": "Id",
+      "type": "string"
+    },
+    "llm_gpu_memory_utilization": {
+      "anyOf": [
+        {
+          "maximum": 1.0,
+          "minimum": 0.0,
+          "type": "number"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Llm Gpu Memory Utilization"
+    },
+    "verdict": {
+      "$ref": "#/$defs/FitVerdict"
+    },
+    "vlm": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/VlmCapacity"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "None — режим без локального VLM"
+    },
+    "vram": {
+      "items": {
+        "$ref": "#/$defs/VramBudget"
+      },
+      "minItems": 1,
+      "title": "Vram",
+      "type": "array"
+    },
+    "warnings": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Warnings",
+      "type": "array"
+    }
+  },
+  "required": [
+    "id",
+    "created_at",
+    "benchmark_id",
+    "backend",
+    "gpus",
+    "allocations",
+    "vram",
+    "gray_zone",
+    "verdict"
+  ],
+  "title": "CapacityPlan",
+  "type": "object"
+}

@@ -1,0 +1,104 @@
+# Лицензионная политика Qoima Vision (SPEC.md §2.7). Любое изменение — только через ревью.
+#
+# Гейт (`qoima-license-gate`) проверяет все Python-пакеты окружения и все npm-пакеты из
+# ui/package-lock.json, включая dev-зависимости: в продукт не должно попасть ничего, что
+# нельзя распространять заказчику. Блокируют и запрещённые, и неизвестные лицензии.
+
+# SPDX-идентификаторы, разрешённые без ревью.
+allowed:
+  - MIT
+  - MIT-0          # MIT без требования атрибуции — строго либеральнее MIT
+  - BSD-2-Clause
+  - BSD-3-Clause
+  - 0BSD           # BSD Zero Clause — строго либеральнее BSD-2-Clause
+  - Apache-2.0
+  - PostgreSQL
+  - ISC
+
+# Явный запрет (сообщение «запрещено», а не «нет в белом списке»). Шаблоны fnmatch, без учёта
+# регистра. LGPL сюда не входит, но и в белом списке её нет — она блокируется как unknown.
+denied_patterns:
+  - "AGPL"
+  - "AGPL-*"
+  - "GPL"
+  - "GPL-*"
+  - "SSPL-*"
+  - "*RSAL*"
+  - "LicenseRef-*Commons-Clause*"
+
+# Собственные пакеты Qoima (проприетарные) — не проверяются.
+first_party:
+  python_prefixes: ["qoima-"]
+  npm_names: ["qoima-ui"]
+
+# Нормализация нестандартных строк из метаданных пакетов в SPDX. Ключи сравниваются без учёта
+# регистра. «BSD» без уточнения сводится к BSD-3-Clause: обе версии разрешены, вывод не меняется.
+aliases:
+  "MIT License": MIT
+  "MIT license": MIT
+  "The MIT License": MIT
+  "Expat": MIT
+  "BSD": BSD-3-Clause
+  "BSD License": BSD-3-Clause
+  "New BSD": BSD-3-Clause
+  "New BSD License": BSD-3-Clause
+  "Modified BSD": BSD-3-Clause
+  "BSD 3-Clause": BSD-3-Clause
+  "BSD-3-Clause License": BSD-3-Clause
+  "3-Clause BSD License": BSD-3-Clause
+  "BSD 2-Clause": BSD-2-Clause
+  "Simplified BSD": BSD-2-Clause
+  "Apache 2.0": Apache-2.0
+  "Apache-2": Apache-2.0
+  "Apache 2": Apache-2.0
+  "Apache License 2.0": Apache-2.0
+  "Apache License, Version 2.0": Apache-2.0
+  "Apache License Version 2.0": Apache-2.0
+  "Apache Software License": Apache-2.0
+  "Apache Software License 2.0": Apache-2.0
+  "ISC License": ISC
+  "ISC License (ISCL)": ISC
+  "PostgreSQL License": PostgreSQL
+  "Python Software Foundation License": PSF-2.0
+  "PSF": PSF-2.0
+  "Mozilla Public License 2.0 (MPL 2.0)": MPL-2.0
+  "MPL 2.0": MPL-2.0
+  "GNU General Public License v2 (GPLv2)": GPL-2.0-only
+  "GNU General Public License v2 or later (GPLv2+)": GPL-2.0-or-later
+  "GNU General Public License v3 (GPLv3)": GPL-3.0-only
+  "GNU General Public License v3 or later (GPLv3+)": GPL-3.0-or-later
+  "GNU Affero General Public License v3": AGPL-3.0-only
+  "GNU Affero General Public License v3 or later (AGPLv3+)": AGPL-3.0-or-later
+  "GNU Lesser General Public License v2 (LGPLv2)": LGPL-2.0-only
+  "GNU Lesser General Public License v2 or later (LGPLv2+)": LGPL-2.0-or-later
+  "GNU Lesser General Public License v3 (LGPLv3)": LGPL-3.0-only
+  "GNU Lesser General Public License v3 or later (LGPLv3+)": LGPL-3.0-or-later
+  "GPLv3": GPL-3.0-only
+  "GPLv2": GPL-2.0-only
+  "AGPLv3": AGPL-3.0-only
+  "Server Side Public License": SSPL-1.0
+
+# Пакеты с лицензией вне белого списка, прошедшие ручное ревью. Исключение привязано к
+# конкретному SPDX-выражению: если пакет сменит лицензию при обновлении, гейт снова упадёт.
+# Каждая запись дублируется в docs/DATA_LICENSES.md с пояснением.
+reviewed:
+  - ecosystem: python
+    package: certifi
+    license: MPL-2.0
+    reason: "CA-бандл для httpx; используется без модификаций. MPL-2.0 — файловый copyleft, не распространяется на код Qoima"
+    reviewed_by: "техническое ревью (Фаза 0); требуется подтверждение юриста Qoima"
+  - ecosystem: python
+    package: typing-extensions
+    license: PSF-2.0
+    reason: "обязательная зависимость pydantic; PSF-2.0 — пермиссивная лицензия без copyleft"
+    reviewed_by: "техническое ревью (Фаза 0); требуется подтверждение юриста Qoima"
+  - ecosystem: python
+    package: greenlet
+    license: MIT AND PSF-2.0
+    reason: "зависимость SQLAlchemy asyncio; MIT + PSF-2.0 (части из CPython), обе пермиссивные"
+    reviewed_by: "техническое ревью (Фаза 0); требуется подтверждение юриста Qoima"
+  - ecosystem: python
+    package: pathspec
+    license: MPL-2.0
+    reason: "только dev-зависимость mypy, в образы сервисов не попадает"
+    reviewed_by: "техническое ревью (Фаза 0); требуется подтверждение юриста Qoima"

@@ -1,0 +1,104 @@
+{
+  "$defs": {
+    "CameraSource": {
+      "enum": [
+        "onvif",
+        "manual",
+        "import",
+        "simulator"
+      ],
+      "title": "CameraSource",
+      "type": "string"
+    },
+    "ScenarioKind": {
+      "description": "Сценарии детекции (SPEC.md §5.8). Имена совпадают с файлами configs/scenarios/*.yaml.",
+      "enum": [
+        "fall",
+        "red_zone",
+        "smoke_fire"
+      ],
+      "title": "ScenarioKind",
+      "type": "string"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "credentials_secret": {
+      "anyOf": [
+        {
+          "pattern": "^[a-z0-9][a-z0-9_\\-]{0,63}$",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "Имя файла в .secrets/ с логином и паролем камеры",
+      "title": "Credentials Secret"
+    },
+    "enabled": {
+      "default": true,
+      "title": "Enabled",
+      "type": "boolean"
+    },
+    "id": {
+      "pattern": "^[a-z0-9][a-z0-9_\\-]{0,63}$",
+      "title": "Id",
+      "type": "string"
+    },
+    "location": {
+      "anyOf": [
+        {
+          "maxLength": 200,
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Location"
+    },
+    "main_url": {
+      "title": "Main Url",
+      "type": "string"
+    },
+    "name": {
+      "maxLength": 120,
+      "minLength": 1,
+      "title": "Name",
+      "type": "string"
+    },
+    "scenarios": {
+      "items": {
+        "$ref": "#/$defs/ScenarioKind"
+      },
+      "title": "Scenarios",
+      "type": "array"
+    },
+    "source": {
+      "$ref": "#/$defs/CameraSource"
+    },
+    "sub_url": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Sub Url"
+    }
+  },
+  "required": [
+    "id",
+    "name",
+    "source",
+    "main_url"
+  ],
+  "title": "CameraConfig",
+  "type": "object"
+}

@@ -1,0 +1,29 @@
+# Prometheus — базовая конфигурация (без GPU). SPEC.md §6.2.
+# В GPU-профилях вместо этого файла монтируется prometheus.gpu.yml (+ DCGM, Triton).
+global:
+  scrape_interval: 15s       # компромисс между детальностью и объёмом TSDB за 30 дней
+  evaluation_interval: 15s
+
+scrape_configs:
+  - job_name: prometheus
+    static_configs: [{targets: ["localhost:9090"]}]
+
+  - job_name: node
+    static_configs: [{targets: ["node-exporter:9100"]}]
+
+  - job_name: core-api
+    scheme: https
+    tls_config:
+      # Самоподписанный сертификат core-api; трафик не выходит из внутренней сети backend.
+      insecure_skip_verify: true
+    static_configs: [{targets: ["core-api:8443"]}]
+
+  - job_name: qoima-services
+    static_configs:
+      - targets: ["vision-pipeline:8080", "agents:8080", "worker-gpu:8080"]
+
+  - job_name: mediamtx
+    static_configs: [{targets: ["mediamtx:9998"]}]
+
+  - job_name: qdrant
+    static_configs: [{targets: ["qdrant:6333"]}]

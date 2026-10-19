@@ -1,0 +1,32 @@
+# Профиль engineering — инструменты для инженеров Qoima: `qoima up --engineering`.
+#
+# Grafana распространяется под AGPL-3.0 (SPEC.md §2.7): она НЕ входит в поставку по умолчанию
+# и используется только как опциональный инструмент инженера. Основной health-дашборд — свой
+# (раздел «Состояние системы» в UI). UI Grafana доступен только с самого сервера (127.0.0.1).
+
+services:
+  grafana:
+    image: grafana/grafana:12.4.13
+    restart: unless-stopped
+    logging:
+      driver: json-file
+      options: {max-size: "20m", max-file: "3"}
+    networks: [backend, edge]
+    ports:
+      - "127.0.0.1:3000:3000"
+    environment:
+      GF_ANALYTICS_REPORTING_ENABLED: "false"   # без исходящих соединений
+      GF_ANALYTICS_CHECK_FOR_UPDATES: "false"
+      GF_ANALYTICS_CHECK_FOR_PLUGIN_UPDATES: "false"
+      GF_NEWS_NEWS_FEED_ENABLED: "false"
+      GF_USERS_ALLOW_SIGN_UP: "false"
+    volumes:
+      - ${QOIMA_DATA_ROOT}/grafana:/var/lib/grafana
+      - ../configs/grafana/datasources.yml:/etc/grafana/provisioning/datasources/qoima.yml:ro
+    depends_on:
+      prometheus: {condition: service_healthy}
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:3000/api/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 6

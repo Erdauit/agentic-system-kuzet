@@ -1,0 +1,10 @@
+# Метрики GPU под именами из SPEC.md §6.2 (gpu_util, gpu_mem_used, gpu_temp) поверх рядов DCGM.
+groups:
+  - name: qoima-gpu
+    rules:
+      - record: gpu_util
+        expr: DCGM_FI_DEV_GPU_UTIL
+      - record: gpu_mem_used
+        expr: DCGM_FI_DEV_FB_USED
+      - record: gpu_temp
+        expr: DCGM_FI_DEV_GPU_TEMP

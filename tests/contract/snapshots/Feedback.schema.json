@@ -1,0 +1,84 @@
+{
+  "$defs": {
+    "FeedbackVerdict": {
+      "enum": [
+        "confirmed",
+        "false_alarm"
+      ],
+      "title": "FeedbackVerdict",
+      "type": "string"
+    },
+    "ReasonCode": {
+      "description": "Справочник причин ложных срабатываний.",
+      "enum": [
+        "steam",
+        "welding",
+        "repair_lying",
+        "reflection",
+        "other"
+      ],
+      "title": "ReasonCode",
+      "type": "string"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "author_id": {
+      "maxLength": 120,
+      "minLength": 1,
+      "title": "Author Id",
+      "type": "string"
+    },
+    "comment": {
+      "anyOf": [
+        {
+          "maxLength": 1000,
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Comment"
+    },
+    "created_at": {
+      "format": "date-time",
+      "title": "Created At",
+      "type": "string"
+    },
+    "id": {
+      "format": "uuid",
+      "title": "Id",
+      "type": "string"
+    },
+    "incident_id": {
+      "format": "uuid",
+      "title": "Incident Id",
+      "type": "string"
+    },
+    "reason_code": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/ReasonCode"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "verdict": {
+      "$ref": "#/$defs/FeedbackVerdict"
+    }
+  },
+  "required": [
+    "id",
+    "incident_id",
+    "verdict",
+    "author_id",
+    "created_at"
+  ],
+  "title": "Feedback",
+  "type": "object"
+}

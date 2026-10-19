@@ -1,0 +1,96 @@
+{
+  "$defs": {
+    "StreamRole": {
+      "enum": [
+        "main",
+        "sub"
+      ],
+      "title": "StreamRole",
+      "type": "string"
+    },
+    "VideoCodec": {
+      "enum": [
+        "h264",
+        "h265",
+        "mjpeg",
+        "other"
+      ],
+      "title": "VideoCodec",
+      "type": "string"
+    }
+  },
+  "additionalProperties": false,
+  "description": "Результат ffprobe одного потока (SPEC.md §3.2, шаг 3).",
+  "properties": {
+    "bitrate_kbps": {
+      "anyOf": [
+        {
+          "minimum": 0,
+          "type": "integer"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Bitrate Kbps"
+    },
+    "codec": {
+      "$ref": "#/$defs/VideoCodec"
+    },
+    "fps": {
+      "exclusiveMinimum": 0,
+      "maximum": 240,
+      "title": "Fps",
+      "type": "number"
+    },
+    "gop_seconds": {
+      "anyOf": [
+        {
+          "exclusiveMinimum": 0,
+          "type": "number"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Gop Seconds"
+    },
+    "height": {
+      "exclusiveMinimum": 0,
+      "maximum": 16384,
+      "title": "Height",
+      "type": "integer"
+    },
+    "probed_at": {
+      "format": "date-time",
+      "title": "Probed At",
+      "type": "string"
+    },
+    "role": {
+      "$ref": "#/$defs/StreamRole"
+    },
+    "url": {
+      "title": "Url",
+      "type": "string"
+    },
+    "width": {
+      "exclusiveMinimum": 0,
+      "maximum": 16384,
+      "title": "Width",
+      "type": "integer"
+    }
+  },
+  "required": [
+    "role",
+    "url",
+    "codec",
+    "width",
+    "height",
+    "fps",
+    "probed_at"
+  ],
+  "title": "StreamProbe",
+  "type": "object"
+}

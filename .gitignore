@@ -1,0 +1,33 @@
+# Секреты (SPEC.md §10): никогда в git
+.secrets/
+*.key
+*.pem
+
+# Данные разработки (qoima up с QOIMA_DATA_ROOT=./.data)
+.data/
+
+# Кэш TensorRT-движков (SPEC.md §11: models/engines — не в git)
+models/engines/*
+!models/engines/.gitkeep
+
+# Python
+.venv/
+.venv-cli/
+__pycache__/
+*.pyc
+.mypy_cache/
+.ruff_cache/
+.pytest_cache/
+dist/
+build/
+*.egg-info/
+
+# UI
+ui/node_modules/
+ui/dist/
+ui/*.tsbuildinfo
+
+# Редакторы и ОС
+.DS_Store
+.idea/
+.vscode/

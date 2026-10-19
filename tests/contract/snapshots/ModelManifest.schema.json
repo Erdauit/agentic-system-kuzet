@@ -1,0 +1,137 @@
+{
+  "$defs": {
+    "ModelSource": {
+      "enum": [
+        "pretrained",
+        "qoima",
+        "trained"
+      ],
+      "title": "ModelSource",
+      "type": "string"
+    },
+    "ModelStatus": {
+      "enum": [
+        "candidate",
+        "shadow",
+        "active",
+        "retired",
+        "rejected"
+      ],
+      "title": "ModelStatus",
+      "type": "string"
+    },
+    "TaskType": {
+      "enum": [
+        "detection",
+        "segmentation",
+        "keypoints",
+        "anomaly",
+        "classification"
+      ],
+      "title": "TaskType",
+      "type": "string"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "created_at": {
+      "format": "date-time",
+      "title": "Created At",
+      "type": "string"
+    },
+    "framework": {
+      "maxLength": 60,
+      "minLength": 1,
+      "title": "Framework",
+      "type": "string"
+    },
+    "golden_set_version": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Golden Set Version"
+    },
+    "license": {
+      "description": "SPDX-выражение лицензии весов",
+      "maxLength": 120,
+      "minLength": 1,
+      "title": "License",
+      "type": "string"
+    },
+    "metrics": {
+      "additionalProperties": {
+        "type": "number"
+      },
+      "title": "Metrics",
+      "type": "object"
+    },
+    "name": {
+      "pattern": "^[a-z0-9][a-z0-9_\\-]{0,63}$",
+      "title": "Name",
+      "type": "string"
+    },
+    "promoted_by": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Promoted By"
+    },
+    "source": {
+      "$ref": "#/$defs/ModelSource"
+    },
+    "status": {
+      "$ref": "#/$defs/ModelStatus"
+    },
+    "task_type": {
+      "$ref": "#/$defs/TaskType"
+    },
+    "training_task_id": {
+      "anyOf": [
+        {
+          "format": "uuid",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Training Task Id"
+    },
+    "version": {
+      "pattern": "^\\d+\\.\\d+\\.\\d+([-+][0-9A-Za-z.\\-]+)?$",
+      "title": "Version",
+      "type": "string"
+    },
+    "weights_sha256": {
+      "pattern": "^[0-9a-f]{64}$",
+      "title": "Weights Sha256",
+      "type": "string"
+    }
+  },
+  "required": [
+    "name",
+    "version",
+    "task_type",
+    "framework",
+    "license",
+    "weights_sha256",
+    "source",
+    "status",
+    "created_at"
+  ],
+  "title": "ModelManifest",
+  "type": "object"
+}

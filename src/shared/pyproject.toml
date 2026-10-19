@@ -1,0 +1,36 @@
+[project]
+name = "qoima-shared"
+version = "0.1.0"
+description = "Общие контракты, конфиги, хранилища, телеметрия и лицензионная политика Qoima Vision"
+requires-python = ">=3.11"
+license = "LicenseRef-Qoima-Proprietary"
+dependencies = [
+    "pydantic>=2.9,<3",
+    "pyyaml>=6.0.2,<7",
+    "structlog>=24.4",
+    "prometheus-client>=0.21,<1",
+    # zoneinfo в python:slim-образах опирается на пакет tzdata (системной базы tz там может не быть).
+    "tzdata>=2024.1",
+]
+
+[project.optional-dependencies]
+postgres = ["sqlalchemy[asyncio]>=2.0.36,<2.1", "asyncpg>=0.30,<1"]
+valkey = ["valkey>=6.0,<7"]
+
+[project.scripts]
+qoima-license-gate = "shared.licenses.gate:main"
+
+[build-system]
+requires = ["hatchling>=1.27,<2"]
+build-backend = "hatchling.build"
+
+# Каталог пакета совпадает с корнем проекта (src/shared) — так сохраняется структура из SPEC.md §11.
+# sources добавляет префикс "shared/" ко всем файлам колеса; dev-mode-dirs кладёт src/ в sys.path
+# для editable-установки при разработке.
+[tool.hatch.build.targets.wheel]
+include = ["**/*.py", "**/*.pyi", "**/*.yaml", "**/*.json", "**/*.md", "**/*.mako", "py.typed"]
+exclude = ["pyproject.toml", "**/__pycache__"]
+dev-mode-dirs = [".."]
+
+[tool.hatch.build.targets.wheel.sources]
+"" = "shared"

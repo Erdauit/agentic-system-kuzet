@@ -1,0 +1,28 @@
+{
+  "name": "qoima-ui",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Qoima Vision — веб-интерфейс (SPA, раздаётся core-api)",
+  "license": "UNLICENSED",
+  "type": "module",
+  "engines": {
+    "node": ">=22.12.0"
+  },
+  "scripts": {
+    "dev": "vite",
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "build": "tsc --noEmit -p tsconfig.json && vite build",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "react": "19.3.1",
+    "react-dom": "19.3.1"
+  },
+  "devDependencies": {
+    "@types/react": "19.3.0",
+    "@types/react-dom": "19.3.0",
+    "@vitejs/plugin-react-swc": "4.3.3",
+    "typescript": "5.9.3",
+    "vite": "7.3.7"
+  }
+}

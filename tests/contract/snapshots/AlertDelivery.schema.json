@@ -1,0 +1,136 @@
+{
+  "$defs": {
+    "AlertStream": {
+      "enum": [
+        "safety",
+        "system"
+      ],
+      "title": "AlertStream",
+      "type": "string"
+    },
+    "ChannelKind": {
+      "enum": [
+        "web_ui",
+        "telegram",
+        "local_relay",
+        "opcua"
+      ],
+      "title": "ChannelKind",
+      "type": "string"
+    },
+    "DeliveryStatus": {
+      "enum": [
+        "pending",
+        "sent",
+        "retrying",
+        "failed"
+      ],
+      "title": "DeliveryStatus",
+      "type": "string"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "attempt": {
+      "minimum": 1,
+      "title": "Attempt",
+      "type": "integer"
+    },
+    "channel": {
+      "$ref": "#/$defs/ChannelKind"
+    },
+    "created_at": {
+      "format": "date-time",
+      "title": "Created At",
+      "type": "string"
+    },
+    "escalation_level": {
+      "maximum": 10,
+      "minimum": 0,
+      "title": "Escalation Level",
+      "type": "integer"
+    },
+    "idempotency_key": {
+      "pattern": "^[0-9a-f]{64}$",
+      "title": "Idempotency Key",
+      "type": "string"
+    },
+    "incident_id": {
+      "anyOf": [
+        {
+          "format": "uuid",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Incident Id"
+    },
+    "last_error": {
+      "anyOf": [
+        {
+          "maxLength": 2000,
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Last Error"
+    },
+    "sent_at": {
+      "anyOf": [
+        {
+          "format": "date-time",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Sent At"
+    },
+    "status": {
+      "$ref": "#/$defs/DeliveryStatus"
+    },
+    "stream": {
+      "$ref": "#/$defs/AlertStream"
+    },
+    "system_alert_id": {
+      "anyOf": [
+        {
+          "format": "uuid",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "System Alert Id"
+    },
+    "target": {
+      "description": "Получатель: chat id, реле, группа",
+      "maxLength": 200,
+      "minLength": 1,
+      "title": "Target",
+      "type": "string"
+    }
+  },
+  "required": [
+    "idempotency_key",
+    "stream",
+    "channel",
+    "target",
+    "escalation_level",
+    "attempt",
+    "status",
+    "created_at"
+  ],
+  "title": "AlertDelivery",
+  "type": "object"
+}

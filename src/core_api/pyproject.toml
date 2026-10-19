@@ -1,0 +1,31 @@
+[project]
+name = "qoima-core-api"
+version = "0.1.0"
+description = "core-api: REST/WebSocket API, health, события, алерты, реестр моделей"
+requires-python = ">=3.11"
+license = "LicenseRef-Qoima-Proprietary"
+dependencies = [
+    "qoima-shared[postgres,valkey]",
+    "fastapi>=0.115,<1",
+    "uvicorn>=0.32,<1",
+    "alembic>=1.14,<2",
+    "httpx>=0.27,<1",
+]
+
+[tool.uv.sources]
+qoima-shared = { workspace = true }
+
+[build-system]
+requires = ["hatchling>=1.27,<2"]
+build-backend = "hatchling.build"
+
+# Каталог пакета совпадает с корнем проекта (src/core_api) — так сохраняется структура из SPEC.md §11.
+# sources добавляет префикс "core_api/" ко всем файлам колеса; dev-mode-dirs кладёт src/ в sys.path
+# для editable-установки при разработке.
+[tool.hatch.build.targets.wheel]
+include = ["**/*.py", "**/*.pyi", "**/*.yaml", "**/*.json", "**/*.md", "**/*.mako", "py.typed"]
+exclude = ["pyproject.toml", "**/__pycache__"]
+dev-mode-dirs = [".."]
+
+[tool.hatch.build.targets.wheel.sources]
+"" = "core_api"

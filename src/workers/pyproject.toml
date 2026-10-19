@@ -1,0 +1,27 @@
+[project]
+name = "qoima-workers"
+version = "0.1.0"
+description = "worker-gpu: тяжёлые задачи (эмбеддинги, авторазметка, обучение, экспорт TensorRT)"
+requires-python = ">=3.11"
+license = "LicenseRef-Qoima-Proprietary"
+dependencies = [
+    "qoima-shared[valkey]",
+]
+
+[tool.uv.sources]
+qoima-shared = { workspace = true }
+
+[build-system]
+requires = ["hatchling>=1.27,<2"]
+build-backend = "hatchling.build"
+
+# Каталог пакета совпадает с корнем проекта (src/workers) — так сохраняется структура из SPEC.md §11.
+# sources добавляет префикс "workers/" ко всем файлам колеса; dev-mode-dirs кладёт src/ в sys.path
+# для editable-установки при разработке.
+[tool.hatch.build.targets.wheel]
+include = ["**/*.py", "**/*.pyi", "**/*.yaml", "**/*.json", "**/*.md", "**/*.mako", "py.typed"]
+exclude = ["pyproject.toml", "**/__pycache__"]
+dev-mode-dirs = [".."]
+
+[tool.hatch.build.targets.wheel.sources]
+"" = "workers"

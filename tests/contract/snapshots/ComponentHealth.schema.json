@@ -1,0 +1,107 @@
+{
+  "$defs": {
+    "ComponentKind": {
+      "enum": [
+        "cameras",
+        "pipeline",
+        "models",
+        "triton",
+        "llm",
+        "queues",
+        "database",
+        "vector_db",
+        "media_server",
+        "agents",
+        "worker",
+        "disk",
+        "time",
+        "alert_channels"
+      ],
+      "title": "ComponentKind",
+      "type": "string"
+    },
+    "HealthStatus": {
+      "enum": [
+        "green",
+        "yellow",
+        "red",
+        "unknown",
+        "not_deployed"
+      ],
+      "title": "HealthStatus",
+      "type": "string"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "checked_at": {
+      "format": "date-time",
+      "title": "Checked At",
+      "type": "string"
+    },
+    "component": {
+      "maxLength": 80,
+      "minLength": 1,
+      "title": "Component",
+      "type": "string"
+    },
+    "details": {
+      "additionalProperties": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "integer"
+          },
+          {
+            "type": "number"
+          },
+          {
+            "type": "boolean"
+          },
+          {
+            "type": "null"
+          }
+        ]
+      },
+      "title": "Details",
+      "type": "object"
+    },
+    "kind": {
+      "$ref": "#/$defs/ComponentKind"
+    },
+    "latency_ms": {
+      "anyOf": [
+        {
+          "minimum": 0,
+          "type": "number"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Latency Ms"
+    },
+    "message": {
+      "description": "Понятный текст для человека",
+      "maxLength": 500,
+      "minLength": 1,
+      "title": "Message",
+      "type": "string"
+    },
+    "status": {
+      "$ref": "#/$defs/HealthStatus"
+    }
+  },
+  "required": [
+    "component",
+    "kind",
+    "status",
+    "message",
+    "checked_at"
+  ],
+  "title": "ComponentHealth",
+  "type": "object"
+}

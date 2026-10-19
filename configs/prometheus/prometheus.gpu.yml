@@ -1,0 +1,37 @@
+# Prometheus — конфигурация GPU-профилей (compose.gpu1.yml / compose.gpu2.yml). SPEC.md §6.2.
+# Совпадает с prometheus.yml плюс DCGM (метрики GPU) и Triton.
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+
+rule_files:
+  - /etc/prometheus/rules.gpu.yml
+
+scrape_configs:
+  - job_name: prometheus
+    static_configs: [{targets: ["localhost:9090"]}]
+
+  - job_name: node
+    static_configs: [{targets: ["node-exporter:9100"]}]
+
+  - job_name: core-api
+    scheme: https
+    tls_config:
+      insecure_skip_verify: true
+    static_configs: [{targets: ["core-api:8443"]}]
+
+  - job_name: qoima-services
+    static_configs:
+      - targets: ["vision-pipeline:8080", "agents:8080", "worker-gpu:8080"]
+
+  - job_name: mediamtx
+    static_configs: [{targets: ["mediamtx:9998"]}]
+
+  - job_name: qdrant
+    static_configs: [{targets: ["qdrant:6333"]}]
+
+  - job_name: dcgm
+    static_configs: [{targets: ["dcgm-exporter:9400"]}]
+
+  - job_name: triton
+    static_configs: [{targets: ["triton:8002"]}]

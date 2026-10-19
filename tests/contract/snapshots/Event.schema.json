@@ -1,0 +1,178 @@
+{
+  "$defs": {
+    "BBox": {
+      "additionalProperties": false,
+      "description": "Прямоугольник в нормализованных координатах кадра.",
+      "properties": {
+        "x1": {
+          "maximum": 1.0,
+          "minimum": 0.0,
+          "title": "X1",
+          "type": "number"
+        },
+        "x2": {
+          "maximum": 1.0,
+          "minimum": 0.0,
+          "title": "X2",
+          "type": "number"
+        },
+        "y1": {
+          "maximum": 1.0,
+          "minimum": 0.0,
+          "title": "Y1",
+          "type": "number"
+        },
+        "y2": {
+          "maximum": 1.0,
+          "minimum": 0.0,
+          "title": "Y2",
+          "type": "number"
+        }
+      },
+      "required": [
+        "x1",
+        "y1",
+        "x2",
+        "y2"
+      ],
+      "title": "BBox",
+      "type": "object"
+    },
+    "EventType": {
+      "enum": [
+        "fall",
+        "red_zone",
+        "smoke_fire",
+        "fall_recovered"
+      ],
+      "title": "EventType",
+      "type": "string"
+    },
+    "FrameRef": {
+      "additionalProperties": false,
+      "description": "Ссылка на кадр в BlobStore (ключевой кадр, кадр-доказательство).",
+      "properties": {
+        "bbox": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/BBox"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "blob_key": {
+          "minLength": 1,
+          "title": "Blob Key",
+          "type": "string"
+        },
+        "captured_at": {
+          "format": "date-time",
+          "title": "Captured At",
+          "type": "string"
+        }
+      },
+      "required": [
+        "blob_key",
+        "captured_at"
+      ],
+      "title": "FrameRef",
+      "type": "object"
+    },
+    "RoutingDecision": {
+      "description": "Маршрутизация по уверенности (SPEC.md §5.10). Ниже T_low событие не создаётся вовсе.",
+      "enum": [
+        "event",
+        "event_with_arbiter"
+      ],
+      "title": "RoutingDecision",
+      "type": "string"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "camera_id": {
+      "pattern": "^[a-z0-9][a-z0-9_\\-]{0,63}$",
+      "title": "Camera Id",
+      "type": "string"
+    },
+    "detected_at": {
+      "description": "Момент, когда FSM перешёл в ALERT",
+      "format": "date-time",
+      "title": "Detected At",
+      "type": "string"
+    },
+    "detector_score": {
+      "description": "Калиброванная вероятность детектора",
+      "maximum": 1.0,
+      "minimum": 0.0,
+      "title": "Detector Score",
+      "type": "number"
+    },
+    "evidence": {
+      "items": {
+        "$ref": "#/$defs/FrameRef"
+      },
+      "maxItems": 16,
+      "title": "Evidence",
+      "type": "array"
+    },
+    "id": {
+      "format": "uuid",
+      "title": "Id",
+      "type": "string"
+    },
+    "model_version": {
+      "maxLength": 120,
+      "minLength": 1,
+      "title": "Model Version",
+      "type": "string"
+    },
+    "routing": {
+      "$ref": "#/$defs/RoutingDecision"
+    },
+    "started_at": {
+      "description": "Начало ситуации (например, момент падения)",
+      "format": "date-time",
+      "title": "Started At",
+      "type": "string"
+    },
+    "track_ids": {
+      "items": {
+        "type": "integer"
+      },
+      "title": "Track Ids",
+      "type": "array"
+    },
+    "type": {
+      "$ref": "#/$defs/EventType"
+    },
+    "zone_id": {
+      "anyOf": [
+        {
+          "pattern": "^[a-z0-9][a-z0-9_\\-]{0,63}$",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Zone Id"
+    }
+  },
+  "required": [
+    "id",
+    "type",
+    "camera_id",
+    "started_at",
+    "detected_at",
+    "detector_score",
+    "routing",
+    "model_version"
+  ],
+  "title": "Event",
+  "type": "object"
+}

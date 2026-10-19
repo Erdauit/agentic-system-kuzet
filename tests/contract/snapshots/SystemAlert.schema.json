@@ -1,0 +1,98 @@
+{
+  "$defs": {
+    "SystemAlertKind": {
+      "enum": [
+        "camera_down",
+        "camera_frozen",
+        "camera_black",
+        "camera_overexposed",
+        "camera_blur",
+        "camera_occluded",
+        "camera_view_shift",
+        "component_down",
+        "disk_low",
+        "time_unsynced",
+        "canary_failed",
+        "vlm_degraded"
+      ],
+      "title": "SystemAlertKind",
+      "type": "string"
+    },
+    "SystemAlertSeverity": {
+      "enum": [
+        "warning",
+        "critical"
+      ],
+      "title": "SystemAlertSeverity",
+      "type": "string"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "camera_id": {
+      "anyOf": [
+        {
+          "pattern": "^[a-z0-9][a-z0-9_\\-]{0,63}$",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Camera Id"
+    },
+    "cleared_at": {
+      "anyOf": [
+        {
+          "format": "date-time",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Cleared At"
+    },
+    "component": {
+      "maxLength": 80,
+      "minLength": 1,
+      "title": "Component",
+      "type": "string"
+    },
+    "id": {
+      "format": "uuid",
+      "title": "Id",
+      "type": "string"
+    },
+    "kind": {
+      "$ref": "#/$defs/SystemAlertKind"
+    },
+    "message": {
+      "description": "Понятный текст для инженера",
+      "maxLength": 1000,
+      "minLength": 1,
+      "title": "Message",
+      "type": "string"
+    },
+    "raised_at": {
+      "format": "date-time",
+      "title": "Raised At",
+      "type": "string"
+    },
+    "severity": {
+      "$ref": "#/$defs/SystemAlertSeverity"
+    }
+  },
+  "required": [
+    "id",
+    "kind",
+    "severity",
+    "component",
+    "message",
+    "raised_at"
+  ],
+  "title": "SystemAlert",
+  "type": "object"
+}

@@ -1,0 +1,32 @@
+[project]
+name = "qoima-cli"
+version = "0.1.0"
+description = "CLI qoima: up/down/status/doctor и сервисные команды"
+requires-python = ">=3.11"
+license = "LicenseRef-Qoima-Proprietary"
+dependencies = [
+    "qoima-shared",
+    "typer>=0.12,<1",
+    "rich>=13.9",
+]
+
+[project.scripts]
+qoima = "cli.main:main"
+
+[tool.uv.sources]
+qoima-shared = { workspace = true }
+
+[build-system]
+requires = ["hatchling>=1.27,<2"]
+build-backend = "hatchling.build"
+
+# Каталог пакета совпадает с корнем проекта (src/cli) — так сохраняется структура из SPEC.md §11.
+# sources добавляет префикс "cli/" ко всем файлам колеса; dev-mode-dirs кладёт src/ в sys.path
+# для editable-установки при разработке.
+[tool.hatch.build.targets.wheel]
+include = ["**/*.py", "**/*.pyi", "**/*.yaml", "**/*.json", "**/*.md", "**/*.mako", "py.typed"]
+exclude = ["pyproject.toml", "**/__pycache__"]
+dev-mode-dirs = [".."]
+
+[tool.hatch.build.targets.wheel.sources]
+"" = "cli"

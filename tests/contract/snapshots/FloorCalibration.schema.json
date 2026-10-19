@@ -1,0 +1,125 @@
+{
+  "$defs": {
+    "KnownDistance": {
+      "additionalProperties": false,
+      "description": "Известное расстояние между двумя точками калибровки — задаёт масштаб в метрах.",
+      "properties": {
+        "meters": {
+          "exclusiveMinimum": 0,
+          "maximum": 500,
+          "title": "Meters",
+          "type": "number"
+        },
+        "point_a": {
+          "maximum": 3,
+          "minimum": 0,
+          "title": "Point A",
+          "type": "integer"
+        },
+        "point_b": {
+          "maximum": 3,
+          "minimum": 0,
+          "title": "Point B",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "point_a",
+        "point_b",
+        "meters"
+      ],
+      "title": "KnownDistance",
+      "type": "object"
+    },
+    "Point": {
+      "additionalProperties": false,
+      "description": "Точка в нормализованных координатах кадра (0..1).\n\nНормализация делает зоны независимыми от разрешения: полигон, нарисованный на снапшоте\nmainstream, корректно применяется к substream.",
+      "properties": {
+        "x": {
+          "maximum": 1.0,
+          "minimum": 0.0,
+          "title": "X",
+          "type": "number"
+        },
+        "y": {
+          "maximum": 1.0,
+          "minimum": 0.0,
+          "title": "Y",
+          "type": "number"
+        }
+      },
+      "required": [
+        "x",
+        "y"
+      ],
+      "title": "Point",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "description": "Калибровка плоскости пола: 4 точки на полу → гомография (SPEC.md §3.2, шаг 5).\n\nhomography заполняет vision-pipeline (geometry) после расчёта; без калибровки пайплайн\nиспользует fallback-эвристику, а UI показывает пониженную точность.",
+  "properties": {
+    "calibrated_at": {
+      "format": "date-time",
+      "title": "Calibrated At",
+      "type": "string"
+    },
+    "camera_id": {
+      "pattern": "^[a-z0-9][a-z0-9_\\-]{0,63}$",
+      "title": "Camera Id",
+      "type": "string"
+    },
+    "homography": {
+      "anyOf": [
+        {
+          "items": {
+            "items": {
+              "type": "number"
+            },
+            "type": "array"
+          },
+          "type": "array"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Homography"
+    },
+    "image_points": {
+      "items": {
+        "$ref": "#/$defs/Point"
+      },
+      "maxItems": 4,
+      "minItems": 4,
+      "title": "Image Points",
+      "type": "array"
+    },
+    "known_distance": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/KnownDistance"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "snapshot_key": {
+      "description": "Снапшот, на котором делалась калибровка",
+      "minLength": 1,
+      "title": "Snapshot Key",
+      "type": "string"
+    }
+  },
+  "required": [
+    "camera_id",
+    "image_points",
+    "snapshot_key",
+    "calibrated_at"
+  ],
+  "title": "FloorCalibration",
+  "type": "object"
+}

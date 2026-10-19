@@ -1,0 +1,9 @@
+# Сценарий «Падение и лежание» (SPEC.md §5.8, FallFSM).
+# STANDING → FALLING → DOWN → (lying_seconds) → ALERT; возврат в STANDING пишет микро-инцидент.
+scenario: fall
+safety_class: true     # класс безопасности: фидбек не может снизить чувствительность (SPEC.md §2.6)
+target_fps: 8          # SPEC.md §5.4: 5–10 FPS; 8 — запас на быстрые падения при умеренной нагрузке
+lying_seconds: 10      # SPEC.md §5.8: таймер лежания по умолчанию 10 с
+# Стартовая серая зона. P > t_high — событие; t_low ≤ P ≤ t_high — событие + арбитр.
+# Пересчитывается Trainer/Evaluator по golden set и ограничивается ёмкостью VLM (Фазы 3, 7).
+thresholds: {t_low: 0.4, t_high: 0.8}

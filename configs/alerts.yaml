@@ -1,0 +1,56 @@
+# Каналы, получатели и эскалация алертов (SPEC.md §3.2 шаг 7, §7).
+# Два потока никогда не смешиваются: safety (операторы, начальник смены, сирена)
+# и system (инженеры и site_admin). Проверяется при загрузке конфига.
+
+channels:
+  web_ui:
+    enabled: true            # веб-UI отключить нельзя — это канал последней надежды
+  telegram:
+    # Выключен по умолчанию: нужен токен бота (.secrets/telegram_bot_token) и интернет.
+    # Недоступность Telegram не мешает локальным каналам (SPEC.md §7).
+    enabled: false
+    bot_token_secret: telegram_bot_token
+    timeout_s: 5             # дольше ждать нельзя: задержка одного канала не должна тормозить ретраи
+  local_relay:
+    enabled: false           # включается в мастере после указания адреса реле/сирены
+    http:
+      url: null
+      method: POST
+      timeout_s: 2           # реле в локальной сети отвечает за миллисекунды; 2 с — с запасом
+    modbus:
+      host: null
+      port: 502              # стандартный порт Modbus/TCP
+      unit_id: 1
+      coil: 0
+      pulse_seconds: 10      # длительность сигнала сирены, если оператор не подтвердил раньше
+  opcua:
+    enabled: false           # опционально, SCADA по OPC UA
+    endpoint: null
+
+delivery:
+  # At-least-once с идемпотентным ключом: повторяем до 10 раз с экспоненциальной паузой
+  # 1 → 2 → 4 … ≤ 60 с (суммарно ~5 минут), затем доставка помечается failed и
+  # порождает системный алерт.
+  max_attempts: 10
+  initial_backoff_s: 1
+  max_backoff_s: 60
+
+groups:
+  shift_operators:
+    roles: [operator]
+  shift_lead:
+    roles: [shift_lead]
+  engineers:
+    roles: [site_admin, qoima_engineer]
+
+safety:
+  # Эскалация: нет подтверждения → следующий уровень → сирена (SPEC.md §7).
+  # 2 и 5 минут — стартовые значения, согласуются с заказчиком в мастере (шаг 7).
+  escalation:
+    - {level: 0, after_minutes: 0, groups: [shift_operators], channels: [web_ui, telegram]}
+    - {level: 1, after_minutes: 2, groups: [shift_lead], channels: [web_ui, telegram]}
+    - {level: 2, after_minutes: 5, groups: [shift_lead], channels: [local_relay]}
+
+system:
+  groups: [engineers]
+  channels: [web_ui, telegram]

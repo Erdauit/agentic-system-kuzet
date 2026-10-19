@@ -1,0 +1,31 @@
+# Шаблоны RTSP-URL по производителям для поиска substream (SPEC.md §3.2, шаг 3).
+# Плейсхолдеры: {host}, {port}, {channel}. Логин и пароль в шаблонах запрещены —
+# они подставляются из .secrets/ в момент подключения.
+# verified: true — шаблон проверен на реальных камерах; false — взят из документации
+# производителя и должен быть подтверждён на объекте.
+vendors:
+  hikvision:
+    main: "rtsp://{host}:{port}/Streaming/Channels/{channel}01"
+    sub: ["rtsp://{host}:{port}/Streaming/Channels/{channel}02"]
+    default_port: 554
+    verified: false
+  dahua:
+    main: "rtsp://{host}:{port}/cam/realmonitor?channel={channel}&subtype=0"
+    sub: ["rtsp://{host}:{port}/cam/realmonitor?channel={channel}&subtype=1"]
+    default_port: 554
+    verified: false
+  uniview:
+    main: "rtsp://{host}:{port}/unicast/c{channel}/s0/live"
+    sub: ["rtsp://{host}:{port}/unicast/c{channel}/s1/live"]
+    default_port: 554
+    verified: false
+  axis:
+    main: "rtsp://{host}:{port}/axis-media/media.amp"
+    sub: ["rtsp://{host}:{port}/axis-media/media.amp?resolution=640x360"]
+    default_port: 554
+    verified: false
+  hanwha:
+    main: "rtsp://{host}:{port}/profile2/media.smp"
+    sub: ["rtsp://{host}:{port}/profile3/media.smp"]
+    default_port: 554
+    verified: false

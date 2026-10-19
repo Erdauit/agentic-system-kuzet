@@ -1,0 +1,255 @@
+{
+  "$defs": {
+    "ClassDefinition": {
+      "additionalProperties": false,
+      "properties": {
+        "definition": {
+          "description": "Что считается классом, а что нет",
+          "maxLength": 1000,
+          "minLength": 1,
+          "title": "Definition",
+          "type": "string"
+        },
+        "name": {
+          "pattern": "^[a-z0-9][a-z0-9_\\-]{0,63}$",
+          "title": "Name",
+          "type": "string"
+        }
+      },
+      "required": [
+        "name",
+        "definition"
+      ],
+      "title": "ClassDefinition",
+      "type": "object"
+    },
+    "Feasibility": {
+      "enum": [
+        "feasible",
+        "feasible_with_limitations",
+        "infeasible"
+      ],
+      "title": "Feasibility",
+      "type": "string"
+    },
+    "FeasibilityAssessment": {
+      "additionalProperties": false,
+      "properties": {
+        "alternatives": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Alternatives",
+          "type": "array"
+        },
+        "reasoning": {
+          "maxLength": 4000,
+          "minLength": 1,
+          "title": "Reasoning",
+          "type": "string"
+        },
+        "verdict": {
+          "$ref": "#/$defs/Feasibility"
+        }
+      },
+      "required": [
+        "verdict",
+        "reasoning"
+      ],
+      "title": "FeasibilityAssessment",
+      "type": "object"
+    },
+    "Point": {
+      "additionalProperties": false,
+      "description": "Точка в нормализованных координатах кадра (0..1).\n\nНормализация делает зоны независимыми от разрешения: полигон, нарисованный на снапшоте\nmainstream, корректно применяется к substream.",
+      "properties": {
+        "x": {
+          "maximum": 1.0,
+          "minimum": 0.0,
+          "title": "X",
+          "type": "number"
+        },
+        "y": {
+          "maximum": 1.0,
+          "minimum": 0.0,
+          "title": "Y",
+          "type": "number"
+        }
+      },
+      "required": [
+        "x",
+        "y"
+      ],
+      "title": "Point",
+      "type": "object"
+    },
+    "Polygon": {
+      "additionalProperties": false,
+      "description": "Простой (без самопересечений) полигон в нормализованных координатах.",
+      "properties": {
+        "points": {
+          "items": {
+            "$ref": "#/$defs/Point"
+          },
+          "maxItems": 64,
+          "minItems": 3,
+          "title": "Points",
+          "type": "array"
+        }
+      },
+      "required": [
+        "points"
+      ],
+      "title": "Polygon",
+      "type": "object"
+    },
+    "SuccessCriterion": {
+      "additionalProperties": false,
+      "properties": {
+        "comparator": {
+          "enum": [
+            "gte",
+            "lte"
+          ],
+          "title": "Comparator",
+          "type": "string"
+        },
+        "metric": {
+          "enum": [
+            "f1_macro",
+            "f1_micro",
+            "precision",
+            "recall",
+            "roc_auc",
+            "brier",
+            "ece"
+          ],
+          "title": "Metric",
+          "type": "string"
+        },
+        "threshold": {
+          "title": "Threshold",
+          "type": "number"
+        }
+      },
+      "required": [
+        "metric",
+        "comparator",
+        "threshold"
+      ],
+      "title": "SuccessCriterion",
+      "type": "object"
+    },
+    "TaskType": {
+      "enum": [
+        "detection",
+        "segmentation",
+        "keypoints",
+        "anomaly",
+        "classification"
+      ],
+      "title": "TaskType",
+      "type": "string"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "camera_ids": {
+      "items": {
+        "pattern": "^[a-z0-9][a-z0-9_\\-]{0,63}$",
+        "type": "string"
+      },
+      "minItems": 1,
+      "title": "Camera Ids",
+      "type": "array"
+    },
+    "classes": {
+      "items": {
+        "$ref": "#/$defs/ClassDefinition"
+      },
+      "minItems": 1,
+      "title": "Classes",
+      "type": "array"
+    },
+    "created_at": {
+      "format": "date-time",
+      "title": "Created At",
+      "type": "string"
+    },
+    "feasibility": {
+      "$ref": "#/$defs/FeasibilityAssessment"
+    },
+    "gpu_hours_budget": {
+      "exclusiveMinimum": 0,
+      "title": "Gpu Hours Budget",
+      "type": "number"
+    },
+    "id": {
+      "format": "uuid",
+      "title": "Id",
+      "type": "string"
+    },
+    "request_text": {
+      "description": "Исходный запрос клиента",
+      "maxLength": 4000,
+      "minLength": 1,
+      "title": "Request Text",
+      "type": "string"
+    },
+    "roi": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/Polygon"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "success_criteria": {
+      "items": {
+        "$ref": "#/$defs/SuccessCriterion"
+      },
+      "minItems": 1,
+      "title": "Success Criteria",
+      "type": "array"
+    },
+    "target_fps": {
+      "exclusiveMinimum": 0,
+      "maximum": 60,
+      "title": "Target Fps",
+      "type": "number"
+    },
+    "target_samples_per_class": {
+      "exclusiveMinimum": 0,
+      "title": "Target Samples Per Class",
+      "type": "integer"
+    },
+    "task_type": {
+      "$ref": "#/$defs/TaskType"
+    },
+    "title": {
+      "maxLength": 120,
+      "minLength": 1,
+      "title": "Title",
+      "type": "string"
+    }
+  },
+  "required": [
+    "id",
+    "title",
+    "request_text",
+    "task_type",
+    "camera_ids",
+    "target_fps",
+    "classes",
+    "success_criteria",
+    "feasibility",
+    "target_samples_per_class",
+    "gpu_hours_budget",
+    "created_at"
+  ],
+  "title": "TaskSpec",
+  "type": "object"
+}

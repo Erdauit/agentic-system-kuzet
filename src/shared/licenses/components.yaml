@@ -1,0 +1,43 @@
+# Реестр инфраструктурных компонентов (Docker-образы) и их лицензий (SPEC.md §2.7, §4).
+# Тест tests/unit/test_compose_files.py проверяет, что каждый образ из compose/*.yml есть здесь,
+# закреплён на конкретной версии и имеет разрешённую лицензию — либо явно помечен как
+# опциональный и допускается только в указанных compose-файлах.
+#
+# Базовые ОС-пакеты внутри образов (Debian/Ubuntu) в гейт не входят: это поставка ОС,
+# а не компоненты продукта.
+
+images:
+  postgres:
+    license: PostgreSQL
+  valkey/valkey:
+    license: BSD-3-Clause
+  qdrant/qdrant:
+    license: Apache-2.0
+  bluenviron/mediamtx:
+    license: MIT
+    note: "образ -ffmpeg содержит ffmpeg (LGPL/GPL в зависимости от сборки) — используется как отдельная программа, не линкуется с кодом Qoima; требует подтверждения юриста (docs/ASSUMPTIONS.md)"
+  prom/prometheus:
+    license: Apache-2.0
+  prom/node-exporter:
+    license: Apache-2.0
+  nvidia/dcgm-exporter:
+    license: Apache-2.0
+  nvcr.io/nvidia/tritonserver:
+    license: BSD-3-Clause
+    note: "сервер Triton — BSD-3-Clause; контейнер NGC распространяется по NVIDIA Deep Learning Container License с правом коммерческого развёртывания"
+  qoima/core-api:
+    license: LicenseRef-Qoima-Proprietary
+    first_party: true
+  qoima/vision-pipeline:
+    license: LicenseRef-Qoima-Proprietary
+    first_party: true
+  qoima/agents:
+    license: LicenseRef-Qoima-Proprietary
+    first_party: true
+  qoima/worker-gpu:
+    license: LicenseRef-Qoima-Proprietary
+    first_party: true
+  grafana/grafana:
+    license: AGPL-3.0-only
+    # SPEC.md §2.7: Grafana — только опциональный профиль engineering, не часть поставки по умолчанию.
+    only_in: [compose.engineering.yml]

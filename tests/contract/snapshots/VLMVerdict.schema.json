@@ -1,0 +1,58 @@
+{
+  "$defs": {
+    "HazardAssessment": {
+      "enum": [
+        "NONE",
+        "LOW",
+        "CRITICAL"
+      ],
+      "title": "HazardAssessment",
+      "type": "string"
+    },
+    "PriorityChange": {
+      "description": "VLM может только понизить или повысить приоритет. Варианта SUPPRESS нет намеренно.",
+      "enum": [
+        "NONE",
+        "LOWER",
+        "RAISE"
+      ],
+      "title": "PriorityChange",
+      "type": "string"
+    }
+  },
+  "additionalProperties": false,
+  "description": "Ответ VLM. Числового поля confidence нет: самооценка VLM не является вероятностью.",
+  "properties": {
+    "consistency_ok": {
+      "title": "Consistency Ok",
+      "type": "boolean"
+    },
+    "hazard_assessment": {
+      "$ref": "#/$defs/HazardAssessment"
+    },
+    "reasoning": {
+      "maxLength": 2000,
+      "minLength": 1,
+      "title": "Reasoning",
+      "type": "string"
+    },
+    "scene_description": {
+      "maxLength": 1000,
+      "minLength": 1,
+      "title": "Scene Description",
+      "type": "string"
+    },
+    "suggested_priority_change": {
+      "$ref": "#/$defs/PriorityChange"
+    }
+  },
+  "required": [
+    "scene_description",
+    "hazard_assessment",
+    "suggested_priority_change",
+    "reasoning",
+    "consistency_ok"
+  ],
+  "title": "VLMVerdict",
+  "type": "object"
+}

@@ -1,0 +1,27 @@
+[project]
+name = "qoima-vision-pipeline"
+version = "0.1.0"
+description = "vision-pipeline: hot path (декодирование, инференс, трекинг, FSM, Camera Health)"
+requires-python = ">=3.11"
+license = "LicenseRef-Qoima-Proprietary"
+dependencies = [
+    "qoima-shared[valkey]",
+]
+
+[tool.uv.sources]
+qoima-shared = { workspace = true }
+
+[build-system]
+requires = ["hatchling>=1.27,<2"]
+build-backend = "hatchling.build"
+
+# Каталог пакета совпадает с корнем проекта (src/vision_pipeline) — так сохраняется структура из SPEC.md §11.
+# sources добавляет префикс "vision_pipeline/" ко всем файлам колеса; dev-mode-dirs кладёт src/ в sys.path
+# для editable-установки при разработке.
+[tool.hatch.build.targets.wheel]
+include = ["**/*.py", "**/*.pyi", "**/*.yaml", "**/*.json", "**/*.md", "**/*.mako", "py.typed"]
+exclude = ["pyproject.toml", "**/__pycache__"]
+dev-mode-dirs = [".."]
+
+[tool.hatch.build.targets.wheel.sources]
+"" = "vision_pipeline"

@@ -1,0 +1,45 @@
+{
+  "additionalProperties": false,
+  "description": "Базовая линия качества кадра, снятая при подключении/калибровке камеры.",
+  "properties": {
+    "brightness": {
+      "description": "Средняя яркость (luma)",
+      "maximum": 255,
+      "minimum": 0,
+      "title": "Brightness",
+      "type": "number"
+    },
+    "captured_at": {
+      "format": "date-time",
+      "title": "Captured At",
+      "type": "string"
+    },
+    "noise": {
+      "description": "Оценка шума (σ)",
+      "minimum": 0,
+      "title": "Noise",
+      "type": "number"
+    },
+    "sharpness": {
+      "description": "Дисперсия Лапласиана на substream",
+      "minimum": 0,
+      "title": "Sharpness",
+      "type": "number"
+    },
+    "snapshot_key": {
+      "description": "Ключ снапшота в BlobStore",
+      "minLength": 1,
+      "title": "Snapshot Key",
+      "type": "string"
+    }
+  },
+  "required": [
+    "sharpness",
+    "brightness",
+    "noise",
+    "snapshot_key",
+    "captured_at"
+  ],
+  "title": "QualityBaseline",
+  "type": "object"
+}

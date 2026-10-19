@@ -1,0 +1,172 @@
+{
+  "$defs": {
+    "Point": {
+      "additionalProperties": false,
+      "description": "Точка в нормализованных координатах кадра (0..1).\n\nНормализация делает зоны независимыми от разрешения: полигон, нарисованный на снапшоте\nmainstream, корректно применяется к substream.",
+      "properties": {
+        "x": {
+          "maximum": 1.0,
+          "minimum": 0.0,
+          "title": "X",
+          "type": "number"
+        },
+        "y": {
+          "maximum": 1.0,
+          "minimum": 0.0,
+          "title": "Y",
+          "type": "number"
+        }
+      },
+      "required": [
+        "x",
+        "y"
+      ],
+      "title": "Point",
+      "type": "object"
+    },
+    "Polygon": {
+      "additionalProperties": false,
+      "description": "Простой (без самопересечений) полигон в нормализованных координатах.",
+      "properties": {
+        "points": {
+          "items": {
+            "$ref": "#/$defs/Point"
+          },
+          "maxItems": 64,
+          "minItems": 3,
+          "title": "Points",
+          "type": "array"
+        }
+      },
+      "required": [
+        "points"
+      ],
+      "title": "Polygon",
+      "type": "object"
+    },
+    "WorkActivity": {
+      "description": "Плановые работы, которые дают похожие на опасность картинки (SPEC.md §5.8, SmokeFireFSM).",
+      "enum": [
+        "welding",
+        "steaming",
+        "maintenance",
+        "other"
+      ],
+      "title": "WorkActivity",
+      "type": "string"
+    },
+    "WorkWindow": {
+      "additionalProperties": false,
+      "description": "Окно плановых работ. end < start означает переход через полночь (ночная смена).",
+      "properties": {
+        "activity": {
+          "$ref": "#/$defs/WorkActivity"
+        },
+        "end": {
+          "format": "time",
+          "title": "End",
+          "type": "string"
+        },
+        "note": {
+          "anyOf": [
+            {
+              "maxLength": 200,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Note"
+        },
+        "start": {
+          "format": "time",
+          "title": "Start",
+          "type": "string"
+        },
+        "weekdays": {
+          "description": "0 — понедельник",
+          "items": {
+            "type": "integer"
+          },
+          "maxItems": 7,
+          "minItems": 1,
+          "title": "Weekdays",
+          "type": "array"
+        }
+      },
+      "required": [
+        "activity",
+        "weekdays",
+        "start",
+        "end"
+      ],
+      "title": "WorkWindow",
+      "type": "object"
+    },
+    "ZoneKind": {
+      "enum": [
+        "red_zone",
+        "monitoring"
+      ],
+      "title": "ZoneKind",
+      "type": "string"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "camera_id": {
+      "pattern": "^[a-z0-9][a-z0-9_\\-]{0,63}$",
+      "title": "Camera Id",
+      "type": "string"
+    },
+    "dwell_seconds": {
+      "anyOf": [
+        {
+          "exclusiveMinimum": 0,
+          "type": "number"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "Только для red_zone; None — значение из сценария",
+      "title": "Dwell Seconds"
+    },
+    "id": {
+      "pattern": "^[a-z0-9][a-z0-9_\\-]{0,63}$",
+      "title": "Id",
+      "type": "string"
+    },
+    "kind": {
+      "$ref": "#/$defs/ZoneKind"
+    },
+    "name": {
+      "maxLength": 120,
+      "minLength": 1,
+      "title": "Name",
+      "type": "string"
+    },
+    "polygon": {
+      "$ref": "#/$defs/Polygon"
+    },
+    "work_schedule": {
+      "items": {
+        "$ref": "#/$defs/WorkWindow"
+      },
+      "title": "Work Schedule",
+      "type": "array"
+    }
+  },
+  "required": [
+    "id",
+    "camera_id",
+    "name",
+    "kind",
+    "polygon"
+  ],
+  "title": "Zone",
+  "type": "object"
+}

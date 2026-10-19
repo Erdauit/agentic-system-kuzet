@@ -1,0 +1,49 @@
+# MediaMTX — рестример камер (SPEC.md §3.2 шаг 3, §4). Здесь только отличия от значений
+# по умолчанию MediaMTX 1.21.
+#
+# Фаза 0: камеры ещё не подключаются (paths пуст). В Фазе 1 мастер настройки добавит пути
+# камер через API, а WebRTC-порты будут опубликованы для live-просмотра в браузере.
+
+logLevel: info
+logDestinations: [stdout]
+
+# API и метрики доступны только из внутренней сети backend (порты 9997/9998 не публикуются
+# на хост). Поэтому доступ к api/metrics разрешён без пароля с любого адреса этой сети.
+authMethod: internal
+authInternalUsers:
+  - user: any
+    pass:
+    ips: []
+    permissions:
+      - action: read
+      - action: api
+      - action: metrics
+  # Публикация потоков — только изнутри контейнера (симулятор камер `qoima sim`, Фаза 1).
+  - user: any
+    pass:
+    ips: ["127.0.0.1", "::1"]
+    permissions:
+      - action: publish
+
+api: true
+apiAddress: :9997
+metrics: true
+metricsAddress: :9998
+
+rtsp: true
+rtspAddress: :8554
+# Только TCP: UDP через NAT Docker теряет пакеты, а потеря пакетов — это «битые» кадры.
+rtspTransports: [tcp]
+
+webrtc: true
+webrtcAddress: :8889
+
+# Не нужны продукту — выключены, чтобы не открывать лишние порты.
+rtmp: false
+hls: false
+srt: false
+moq: false
+playback: false
+pprof: false
+
+paths: {}

@@ -1,0 +1,113 @@
+{
+  "$defs": {
+    "JsonValue": {},
+    "PermissionLevel": {
+      "enum": [
+        "read",
+        "propose",
+        "act"
+      ],
+      "title": "PermissionLevel",
+      "type": "string"
+    },
+    "ToolCallStatus": {
+      "enum": [
+        "ok",
+        "denied",
+        "error",
+        "awaiting_confirmation",
+        "cancelled"
+      ],
+      "title": "ToolCallStatus",
+      "type": "string"
+    }
+  },
+  "additionalProperties": false,
+  "description": "Запись о вызове инструмента агентом. Пишется для каждого вызова, включая отказы.",
+  "properties": {
+    "agent": {
+      "maxLength": 80,
+      "minLength": 1,
+      "title": "Agent",
+      "type": "string"
+    },
+    "arguments": {
+      "additionalProperties": {
+        "$ref": "#/$defs/JsonValue"
+      },
+      "title": "Arguments",
+      "type": "object"
+    },
+    "at": {
+      "format": "date-time",
+      "title": "At",
+      "type": "string"
+    },
+    "confirmed_by": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Confirmed By"
+    },
+    "id": {
+      "format": "uuid",
+      "title": "Id",
+      "type": "string"
+    },
+    "on_behalf_of": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "Пользователь, от имени которого действует агент",
+      "title": "On Behalf Of"
+    },
+    "permission": {
+      "$ref": "#/$defs/PermissionLevel"
+    },
+    "result_summary": {
+      "anyOf": [
+        {
+          "maxLength": 2000,
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Result Summary"
+    },
+    "status": {
+      "$ref": "#/$defs/ToolCallStatus"
+    },
+    "tool": {
+      "maxLength": 80,
+      "minLength": 1,
+      "title": "Tool",
+      "type": "string"
+    }
+  },
+  "required": [
+    "id",
+    "at",
+    "agent",
+    "tool",
+    "permission",
+    "arguments",
+    "status"
+  ],
+  "title": "ToolCallAudit",
+  "type": "object"
+}

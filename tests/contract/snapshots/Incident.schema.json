@@ -1,0 +1,422 @@
+{
+  "$defs": {
+    "ArbiterMode": {
+      "enum": [
+        "shadow",
+        "assist"
+      ],
+      "title": "ArbiterMode",
+      "type": "string"
+    },
+    "ArbiterOutcome": {
+      "additionalProperties": false,
+      "properties": {
+        "applied_priority_change": {
+          "$ref": "#/$defs/PriorityChange"
+        },
+        "decided_at": {
+          "format": "date-time",
+          "title": "Decided At",
+          "type": "string"
+        },
+        "fail_open_reason": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/FailOpenReason"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "incident_id": {
+          "format": "uuid",
+          "title": "Incident Id",
+          "type": "string"
+        },
+        "latency_seconds": {
+          "minimum": 0,
+          "title": "Latency Seconds",
+          "type": "number"
+        },
+        "mode": {
+          "$ref": "#/$defs/ArbiterMode"
+        },
+        "verdict": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/VLMVerdict"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        }
+      },
+      "required": [
+        "incident_id",
+        "mode",
+        "applied_priority_change",
+        "latency_seconds",
+        "decided_at"
+      ],
+      "title": "ArbiterOutcome",
+      "type": "object"
+    },
+    "BBox": {
+      "additionalProperties": false,
+      "description": "Прямоугольник в нормализованных координатах кадра.",
+      "properties": {
+        "x1": {
+          "maximum": 1.0,
+          "minimum": 0.0,
+          "title": "X1",
+          "type": "number"
+        },
+        "x2": {
+          "maximum": 1.0,
+          "minimum": 0.0,
+          "title": "X2",
+          "type": "number"
+        },
+        "y1": {
+          "maximum": 1.0,
+          "minimum": 0.0,
+          "title": "Y1",
+          "type": "number"
+        },
+        "y2": {
+          "maximum": 1.0,
+          "minimum": 0.0,
+          "title": "Y2",
+          "type": "number"
+        }
+      },
+      "required": [
+        "x1",
+        "y1",
+        "x2",
+        "y2"
+      ],
+      "title": "BBox",
+      "type": "object"
+    },
+    "ClipRef": {
+      "additionalProperties": false,
+      "description": "Клип инцидента, вырезанный из GOP-буфера без перекодирования.",
+      "properties": {
+        "blob_key": {
+          "minLength": 1,
+          "title": "Blob Key",
+          "type": "string"
+        },
+        "codec": {
+          "maxLength": 20,
+          "minLength": 1,
+          "title": "Codec",
+          "type": "string"
+        },
+        "ends_at": {
+          "format": "date-time",
+          "title": "Ends At",
+          "type": "string"
+        },
+        "starts_at": {
+          "format": "date-time",
+          "title": "Starts At",
+          "type": "string"
+        }
+      },
+      "required": [
+        "blob_key",
+        "starts_at",
+        "ends_at",
+        "codec"
+      ],
+      "title": "ClipRef",
+      "type": "object"
+    },
+    "EventType": {
+      "enum": [
+        "fall",
+        "red_zone",
+        "smoke_fire",
+        "fall_recovered"
+      ],
+      "title": "EventType",
+      "type": "string"
+    },
+    "FailOpenReason": {
+      "enum": [
+        "timeout",
+        "invalid_output",
+        "inconsistent",
+        "unavailable",
+        "overloaded"
+      ],
+      "title": "FailOpenReason",
+      "type": "string"
+    },
+    "FrameRef": {
+      "additionalProperties": false,
+      "description": "Ссылка на кадр в BlobStore (ключевой кадр, кадр-доказательство).",
+      "properties": {
+        "bbox": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/BBox"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "blob_key": {
+          "minLength": 1,
+          "title": "Blob Key",
+          "type": "string"
+        },
+        "captured_at": {
+          "format": "date-time",
+          "title": "Captured At",
+          "type": "string"
+        }
+      },
+      "required": [
+        "blob_key",
+        "captured_at"
+      ],
+      "title": "FrameRef",
+      "type": "object"
+    },
+    "HazardAssessment": {
+      "enum": [
+        "NONE",
+        "LOW",
+        "CRITICAL"
+      ],
+      "title": "HazardAssessment",
+      "type": "string"
+    },
+    "IncidentState": {
+      "enum": [
+        "OPEN",
+        "ACKNOWLEDGED",
+        "RESOLVED",
+        "FALSE_ALARM"
+      ],
+      "title": "IncidentState",
+      "type": "string"
+    },
+    "PriorityChange": {
+      "description": "VLM может только понизить или повысить приоритет. Варианта SUPPRESS нет намеренно.",
+      "enum": [
+        "NONE",
+        "LOWER",
+        "RAISE"
+      ],
+      "title": "PriorityChange",
+      "type": "string"
+    },
+    "Severity": {
+      "enum": [
+        "critical",
+        "high",
+        "medium",
+        "low"
+      ],
+      "title": "Severity",
+      "type": "string"
+    },
+    "VLMVerdict": {
+      "additionalProperties": false,
+      "description": "Ответ VLM. Числового поля confidence нет: самооценка VLM не является вероятностью.",
+      "properties": {
+        "consistency_ok": {
+          "title": "Consistency Ok",
+          "type": "boolean"
+        },
+        "hazard_assessment": {
+          "$ref": "#/$defs/HazardAssessment"
+        },
+        "reasoning": {
+          "maxLength": 2000,
+          "minLength": 1,
+          "title": "Reasoning",
+          "type": "string"
+        },
+        "scene_description": {
+          "maxLength": 1000,
+          "minLength": 1,
+          "title": "Scene Description",
+          "type": "string"
+        },
+        "suggested_priority_change": {
+          "$ref": "#/$defs/PriorityChange"
+        }
+      },
+      "required": [
+        "scene_description",
+        "hazard_assessment",
+        "suggested_priority_change",
+        "reasoning",
+        "consistency_ok"
+      ],
+      "title": "VLMVerdict",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "acknowledged_at": {
+      "anyOf": [
+        {
+          "format": "date-time",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Acknowledged At"
+    },
+    "acknowledged_by": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Acknowledged By"
+    },
+    "arbiter_outcome": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/ArbiterOutcome"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "camera_ids": {
+      "items": {
+        "pattern": "^[a-z0-9][a-z0-9_\\-]{0,63}$",
+        "type": "string"
+      },
+      "minItems": 1,
+      "title": "Camera Ids",
+      "type": "array"
+    },
+    "clip": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/ClipRef"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "dedup_key": {
+      "maxLength": 200,
+      "minLength": 1,
+      "title": "Dedup Key",
+      "type": "string"
+    },
+    "event_ids": {
+      "items": {
+        "format": "uuid",
+        "type": "string"
+      },
+      "minItems": 1,
+      "title": "Event Ids",
+      "type": "array"
+    },
+    "id": {
+      "format": "uuid",
+      "title": "Id",
+      "type": "string"
+    },
+    "keyframes": {
+      "items": {
+        "$ref": "#/$defs/FrameRef"
+      },
+      "maxItems": 6,
+      "title": "Keyframes",
+      "type": "array"
+    },
+    "opened_at": {
+      "format": "date-time",
+      "title": "Opened At",
+      "type": "string"
+    },
+    "resolved_at": {
+      "anyOf": [
+        {
+          "format": "date-time",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Resolved At"
+    },
+    "severity": {
+      "$ref": "#/$defs/Severity"
+    },
+    "state": {
+      "$ref": "#/$defs/IncidentState"
+    },
+    "type": {
+      "$ref": "#/$defs/EventType"
+    },
+    "vlm_verdict": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/VLMVerdict"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "zone_id": {
+      "anyOf": [
+        {
+          "pattern": "^[a-z0-9][a-z0-9_\\-]{0,63}$",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Zone Id"
+    }
+  },
+  "required": [
+    "id",
+    "type",
+    "state",
+    "severity",
+    "camera_ids",
+    "event_ids",
+    "dedup_key",
+    "opened_at"
+  ],
+  "title": "Incident",
+  "type": "object"
+}

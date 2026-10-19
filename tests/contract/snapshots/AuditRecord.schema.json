@@ -1,0 +1,70 @@
+{
+  "$defs": {
+    "AuditAction": {
+      "enum": [
+        "login",
+        "config_change",
+        "incident_transition",
+        "feedback",
+        "model_promote",
+        "model_rollback",
+        "proposal_decision",
+        "system"
+      ],
+      "title": "AuditAction",
+      "type": "string"
+    },
+    "JsonValue": {}
+  },
+  "additionalProperties": false,
+  "description": "Действие человека или системы (не агента — для агентов см. ToolCallAudit).",
+  "properties": {
+    "action": {
+      "$ref": "#/$defs/AuditAction"
+    },
+    "actor": {
+      "maxLength": 120,
+      "minLength": 1,
+      "title": "Actor",
+      "type": "string"
+    },
+    "at": {
+      "format": "date-time",
+      "title": "At",
+      "type": "string"
+    },
+    "details": {
+      "additionalProperties": {
+        "$ref": "#/$defs/JsonValue"
+      },
+      "title": "Details",
+      "type": "object"
+    },
+    "id": {
+      "format": "uuid",
+      "title": "Id",
+      "type": "string"
+    },
+    "target": {
+      "anyOf": [
+        {
+          "maxLength": 200,
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Target"
+    }
+  },
+  "required": [
+    "id",
+    "at",
+    "actor",
+    "action"
+  ],
+  "title": "AuditRecord",
+  "type": "object"
+}
