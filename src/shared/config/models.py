@@ -6,6 +6,7 @@ configs/defaults.yaml (SPEC.md §13.5 «никаких магических чи
 
 from __future__ import annotations
 
+import ipaddress
 import string
 from datetime import time
 from itertools import pairwise
@@ -84,11 +85,27 @@ class CameraHealthConfig(Section):
     sharpness_drop_ratio: Ratio
     occlusion_ratio: Ratio
     view_shift_alert_score: Ratio
+    raise_after_checks: Annotated[int, Field(ge=1, le=10)]
+    clear_after_checks: Annotated[int, Field(ge=1, le=20)]
+    frozen_max_mad: Annotated[float, Field(ge=0, le=10)]
+    frozen_min_samples: Annotated[int, Field(ge=2, le=50)]
+    analysis_width: Annotated[int, Field(ge=64, le=1280)]
+    occlusion_grid: tuple[Annotated[int, Field(ge=2, le=32)], Annotated[int, Field(ge=2, le=32)]]
+    occlusion_tile_texture_ratio: Ratio
+    view_shift_orb_features: Annotated[int, Field(ge=50, le=5000)]
+    view_shift_full_displacement: Ratio
+    view_shift_min_inliers: Annotated[int, Field(ge=4, le=500)]
+    view_shift_check_interval_s: PositiveFloat
+    reconnect_backoff_min_s: PositiveFloat
+    reconnect_backoff_max_s: PositiveFloat
+    pipeline_silence_s: PositiveFloat
 
     @model_validator(mode="after")
     def _luma_order(self) -> Self:
         if self.black_luma_max >= self.overexposed_luma_min:
             raise ValueError("black_luma_max должен быть меньше overexposed_luma_min")
+        if self.reconnect_backoff_min_s > self.reconnect_backoff_max_s:
+            raise ValueError("reconnect_backoff_min_s больше reconnect_backoff_max_s")
         return self
 
 
@@ -168,6 +185,45 @@ class DoctorConfig(Section):
     min_compose_version: VersionString
 
 
+class DiscoveryConfig(Section):
+    subnets: list[str] = Field(default_factory=list)
+    onvif_ports: list[Annotated[int, Field(gt=0, lt=65536)]] = Field(min_length=1)
+    rtsp_ports: list[Annotated[int, Field(gt=0, lt=65536)]] = Field(min_length=1)
+    ws_discovery_timeout_s: PositiveFloat
+    connect_timeout_s: PositiveFloat
+    onvif_timeout_s: PositiveFloat
+    max_hosts: Annotated[int, Field(gt=0, le=65536)]
+    concurrency: Annotated[int, Field(gt=0, le=1024)]
+
+    @model_validator(mode="after")
+    def _subnets(self) -> Self:
+        for net in self.subnets:
+            try:
+                ipaddress.ip_network(net, strict=False)
+            except ValueError as exc:
+                raise ValueError(f"discovery.subnets: некорректная подсеть {net!r}") from exc
+        return self
+
+
+class ProbeConfig(Section):
+    timeout_s: PositiveFloat
+    read_seconds: PositiveFloat
+    max_parallel: Annotated[int, Field(gt=0, le=32)]
+
+
+class AuthConfig(Section):
+    session_ttl_hours: PositiveFloat
+    password_min_length: Annotated[int, Field(ge=8, le=128)]
+    max_failed_logins: Annotated[int, Field(ge=3, le=100)]
+    lockout_minutes: PositiveFloat
+
+
+class SystemAlertsConfig(Section):
+    component_down_after_checks: Annotated[int, Field(ge=1, le=20)]
+    health_poll_interval_s: PositiveFloat
+    doctor_report_max_age_minutes: PositiveFloat
+
+
 class Defaults(Section):
     version: Literal[1]
     site: SiteConfig
@@ -181,6 +237,10 @@ class Defaults(Section):
     canary: CanaryConfig
     health: HealthConfig
     doctor: DoctorConfig
+    discovery: DiscoveryConfig
+    probe: ProbeConfig
+    auth: AuthConfig
+    system_alerts: SystemAlertsConfig
 
     @model_validator(mode="after")
     def _offline_detection_slo(self) -> Self:

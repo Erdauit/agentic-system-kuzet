@@ -1,0 +1,345 @@
+{
+  "$defs": {
+    "CandidateSource": {
+      "enum": [
+        "onvif_profile",
+        "vendor_template",
+        "generic"
+      ],
+      "title": "CandidateSource",
+      "type": "string"
+    },
+    "DiscoveredDevice": {
+      "additionalProperties": false,
+      "properties": {
+        "auth": {
+          "default": "unknown",
+          "enum": [
+            "ok",
+            "failed",
+            "not_required",
+            "unknown"
+          ],
+          "title": "Auth",
+          "type": "string"
+        },
+        "candidates": {
+          "items": {
+            "$ref": "#/$defs/StreamCandidate"
+          },
+          "title": "Candidates",
+          "type": "array"
+        },
+        "channels": {
+          "default": 1,
+          "maximum": 256,
+          "minimum": 1,
+          "title": "Channels",
+          "type": "integer"
+        },
+        "errors": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Errors",
+          "type": "array"
+        },
+        "firmware": {
+          "anyOf": [
+            {
+              "maxLength": 120,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Firmware"
+        },
+        "host": {
+          "maxLength": 255,
+          "minLength": 1,
+          "title": "Host",
+          "type": "string"
+        },
+        "manufacturer": {
+          "anyOf": [
+            {
+              "maxLength": 120,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Manufacturer"
+        },
+        "methods": {
+          "items": {
+            "$ref": "#/$defs/DiscoveryMethod"
+          },
+          "minItems": 1,
+          "title": "Methods",
+          "type": "array"
+        },
+        "model": {
+          "anyOf": [
+            {
+              "maxLength": 120,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Model"
+        },
+        "name": {
+          "anyOf": [
+            {
+              "maxLength": 200,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Имя из ONVIF scopes",
+          "title": "Name"
+        },
+        "onvif_xaddr": {
+          "anyOf": [
+            {
+              "maxLength": 500,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Onvif Xaddr"
+        },
+        "rtsp_port": {
+          "anyOf": [
+            {
+              "exclusiveMaximum": 65536,
+              "exclusiveMinimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Rtsp Port"
+        },
+        "serial": {
+          "anyOf": [
+            {
+              "maxLength": 120,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Serial"
+        }
+      },
+      "required": [
+        "host",
+        "methods"
+      ],
+      "title": "DiscoveredDevice",
+      "type": "object"
+    },
+    "DiscoveryMethod": {
+      "enum": [
+        "onvif_multicast",
+        "onvif_unicast",
+        "rtsp_scan"
+      ],
+      "title": "DiscoveryMethod",
+      "type": "string"
+    },
+    "StreamCandidate": {
+      "additionalProperties": false,
+      "properties": {
+        "channel": {
+          "default": 1,
+          "description": "Канал NVR (1 — для одиночной камеры)",
+          "maximum": 256,
+          "minimum": 1,
+          "title": "Channel",
+          "type": "integer"
+        },
+        "height": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Height"
+        },
+        "profile": {
+          "anyOf": [
+            {
+              "maxLength": 120,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Профиль ONVIF",
+          "title": "Profile"
+        },
+        "role_hint": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/StreamRole"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Что ожидаем: main или sub"
+        },
+        "source": {
+          "$ref": "#/$defs/CandidateSource"
+        },
+        "url": {
+          "title": "Url",
+          "type": "string"
+        },
+        "width": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Width"
+        }
+      },
+      "required": [
+        "url",
+        "source"
+      ],
+      "title": "StreamCandidate",
+      "type": "object"
+    },
+    "StreamRole": {
+      "enum": [
+        "main",
+        "sub"
+      ],
+      "title": "StreamRole",
+      "type": "string"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "devices": {
+      "items": {
+        "$ref": "#/$defs/DiscoveredDevice"
+      },
+      "title": "Devices",
+      "type": "array"
+    },
+    "error": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Error"
+    },
+    "finished_at": {
+      "anyOf": [
+        {
+          "format": "date-time",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Finished At"
+    },
+    "hosts_scanned": {
+      "default": 0,
+      "minimum": 0,
+      "title": "Hosts Scanned",
+      "type": "integer"
+    },
+    "hosts_total": {
+      "default": 0,
+      "minimum": 0,
+      "title": "Hosts Total",
+      "type": "integer"
+    },
+    "id": {
+      "format": "uuid",
+      "title": "Id",
+      "type": "string"
+    },
+    "started_at": {
+      "format": "date-time",
+      "title": "Started At",
+      "type": "string"
+    },
+    "status": {
+      "enum": [
+        "running",
+        "done",
+        "failed"
+      ],
+      "title": "Status",
+      "type": "string"
+    },
+    "subnets": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Subnets",
+      "type": "array"
+    },
+    "warnings": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Warnings",
+      "type": "array"
+    }
+  },
+  "required": [
+    "id",
+    "status",
+    "started_at"
+  ],
+  "title": "DiscoveryJob",
+  "type": "object"
+}

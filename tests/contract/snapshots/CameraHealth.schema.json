@@ -35,6 +35,21 @@
       "title": "Black",
       "type": "boolean"
     },
+    "brightness": {
+      "anyOf": [
+        {
+          "maximum": 255,
+          "minimum": 0,
+          "type": "number"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "Средняя яркость кадра",
+      "title": "Brightness"
+    },
     "camera_id": {
       "pattern": "^[a-z0-9][a-z0-9_\\-]{0,63}$",
       "title": "Camera Id",
@@ -75,6 +90,20 @@
       },
       "title": "Issues",
       "type": "array"
+    },
+    "last_packet_at": {
+      "anyOf": [
+        {
+          "format": "date-time",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "Последний полученный пакет — по нему меряется SLO обнаружения офлайна",
+      "title": "Last Packet At"
     },
     "occluded_ratio": {
       "anyOf": [

@@ -9,10 +9,16 @@ nvidia-container-toolkit, свободное место, синхронизац�
 
 from __future__ import annotations
 
+import json
+import os
+import platform
 import re
 import shutil
+import socket
 import stat
+import tempfile
 from dataclasses import dataclass
+from datetime import UTC, datetime
 from enum import StrEnum
 from pathlib import Path
 
@@ -20,6 +26,7 @@ from cli.compose import ComposePlan, parse_ps
 from cli.paths import REQUIRED_SECRETS
 from cli.runner import Runner
 from shared.config import ConfigError, QoimaConfig, load_config
+from shared.schemas import DoctorGpu, DoctorLevel, DoctorOutcome, DoctorReport
 
 
 class Level(StrEnum):
@@ -385,3 +392,68 @@ def check_containers(runner: Runner, plan: ComposePlan) -> list[Outcome]:
                 )
             )
     return outcomes
+
+
+# ---------------------------------------------------------------- камеры
+
+
+def check_cameras(runner: Runner, plan: ComposePlan) -> list[Outcome]:
+    """Состояние каждой камеры по последнему снимку Camera Health (из контейнера core-api)."""
+    res = runner(plan.command("exec", "-T", "core-api", "python", "-m", "core_api.diagnostics"))
+    if not res.ok:
+        return [Outcome("Камеры", Level.SKIP, "не удалось получить состояние камер из core-api")]
+    try:
+        rows = json.loads(res.stdout)
+    except ValueError:
+        return [Outcome("Камеры", Level.SKIP, "core-api вернул некорректный ответ")]
+    if not rows:
+        return [
+            Outcome(
+                "Камеры", Level.WARN, "камеры не подключены", "Мастер настройки → шаг 3 «Камеры»"
+            )
+        ]
+    outcomes = []
+    for r in rows:
+        status = r.get("status")
+        level = {"ok": Level.OK, "degraded": Level.WARN, "down": Level.FAIL}.get(status, Level.WARN)
+        outcomes.append(
+            Outcome(
+                f"камера {r.get('id')}",
+                level,
+                f"{r.get('name')}: {r.get('detail')}",
+                r.get("recommendation", ""),
+            )
+        )
+    return outcomes
+
+
+# ---------------------------------------------------------------- отчёт для UI
+
+
+def write_report(root: Path, outcomes: list[Outcome], gpus: list[Gpu], version: str) -> Path:
+    """Отчёт doctor в каталог данных: core-api показывает его в мастере и в «Состоянии системы»."""
+    report = DoctorReport(
+        generated_at=datetime.now(UTC),
+        hostname=socket.gethostname() or platform.node() or "server",
+        version=version,
+        outcomes=[
+            DoctorOutcome(
+                name=o.name,
+                level=DoctorLevel(o.level.value),
+                detail=o.detail[:2000],
+                recommendation=o.recommendation[:1000],
+            )
+            for o in outcomes
+        ],
+        gpus=[
+            DoctorGpu(index=g.index, name=g.name, driver=g.driver, vram_mb=g.vram_mb) for g in gpus
+        ],
+    )
+    target = root / "doctor" / "report.json"
+    target.parent.mkdir(parents=True, exist_ok=True)
+    fd, tmp = tempfile.mkstemp(dir=target.parent, prefix=".report-")
+    with os.fdopen(fd, "w", encoding="utf-8") as fh:
+        fh.write(report.model_dump_json(indent=2))
+    Path(tmp).chmod(0o644)
+    Path(tmp).replace(target)
+    return target

@@ -37,6 +37,7 @@ class ComposePlan:
     gpu_profile: GpuProfile
     engineering: bool
     env: dict[str, str] = field(default_factory=dict)
+    sim: bool = False
 
     @property
     def files(self) -> list[Path]:
@@ -46,7 +47,12 @@ class ComposePlan:
             files.append(compose_dir / f"compose.{self.gpu_profile}.yml")
         if self.engineering:
             files.append(compose_dir / "compose.engineering.yml")
+        if self.sim:
+            files.append(compose_dir / "compose.sim.yml")
         return files
+
+    def with_sim(self) -> ComposePlan:
+        return ComposePlan(self.home, self.gpu_profile, self.engineering, self.env, sim=True)
 
     def command(self, *args: str) -> list[str]:
         cmd = ["docker", "compose", "--project-name", PROJECT]
@@ -67,6 +73,8 @@ def build_plan(
     data_root: Path,
     secrets_dir: Path,
     https_port: int,
+    host_subnets: list[str] | None = None,
+    host_ips: list[str] | None = None,
 ) -> ComposePlan:
     return ComposePlan(
         home=home,
@@ -77,6 +85,8 @@ def build_plan(
             "QOIMA_DATA_ROOT": str(data_root),
             "QOIMA_SECRETS_DIR": str(secrets_dir),
             "QOIMA_HTTPS_PORT": str(https_port),
+            "QOIMA_HOST_SUBNETS": ",".join(host_subnets or []),
+            "QOIMA_HOST_IPS": ",".join(host_ips or []),
         },
     )
 

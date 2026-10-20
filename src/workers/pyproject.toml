@@ -1,8 +1,8 @@
 [project]
 name = "qoima-workers"
-version = "0.1.0"
+version = "0.2.0"
 description = "worker-gpu: тяжёлые задачи (эмбеддинги, авторазметка, обучение, экспорт TensorRT)"
-requires-python = ">=3.11"
+requires-python = ">=3.12"
 license = "LicenseRef-Qoima-Proprietary"
 dependencies = [
     "qoima-shared[valkey]",

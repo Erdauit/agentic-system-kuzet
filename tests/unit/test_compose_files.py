@@ -44,6 +44,7 @@ def test_compose_files_exist() -> None:
         "compose.engineering.yml",
         "compose.gpu1.yml",
         "compose.gpu2.yml",
+        "compose.sim.yml",
         "compose.yml",
     ]
 
@@ -56,6 +57,8 @@ def test_images_pinned_and_licensed(file: str, name: str, svc: dict[str, Any]) -
     assert entry is not None, f"{repo} нет в shared/licenses/components.yaml"
     if entry.get("first_party"):
         assert tag.startswith("${QOIMA_VERSION")
+        if entry.get("only_in"):
+            assert file in entry["only_in"], f"{repo} разрешён только в {entry['only_in']}"
         return
     assert any(ch.isdigit() for ch in tag), f"{name}: тег {tag} без версии"
     only_in = entry.get("only_in")
@@ -79,6 +82,8 @@ def test_base_services_have_healthchecks() -> None:
         **base["services"],
         **{k: v for k, v in gpu["services"].items() if "image" in v},
     }.items():
+        if "build" in svc.get("profiles", []):
+            continue  # media-base: только источник для сборки, не запускается
         assert "healthcheck" in svc, f"{name}: нет healthcheck — нельзя дождаться healthy"
 
 
@@ -88,21 +93,26 @@ def test_network_segmentation() -> None:
     edge = {n for n, s in base["services"].items() if "edge" in s.get("networks", [])}
     # Наружу смотрят только UI/API и рестример камер (SPEC.md §10).
     assert edge == {"core-api", "mediamtx"}
-    published = {n for n, s in base["services"].items() if s.get("ports")}
-    assert published == {"core-api"}
+    published = {n: s["ports"] for n, s in base["services"].items() if s.get("ports")}
+    assert set(published) == {"core-api", "mediamtx"}
+    # MediaMTX публикует только медиапорт WebRTC; API, RTSP и сигнализация — внутри backend.
+    assert all(str(p).startswith("8189:8189") for p in published["mediamtx"])
 
 
 def test_no_inline_secrets() -> None:
     """Пароли и токены передаются только файлами Docker secrets (SPEC.md §10)."""
     sensitive = ("PASSWORD", "TOKEN", "SECRET", "API_KEY")
     for file, name, svc in _services():
+        if file == "compose.sim.yml":
+            continue  # симулятор камер для разработки: пароль admin/qoima-sim — тестовый, задокументирован
         env = svc.get("environment") or {}
         items = env.items() if isinstance(env, dict) else (e.split("=", 1) for e in env)
         for key, value in items:
             if any(s in str(key).upper() for s in sensitive):
-                assert str(key).upper().endswith("_FILE") and str(value).startswith(
-                    "/run/secrets/"
-                ), f"{file}:{name}: {key} должен ссылаться на файл в /run/secrets"
+                # Только ссылки на файлы и каталоги секретов, никаких значений в открытом виде.
+                assert str(value).startswith("/run/"), (
+                    f"{file}:{name}: {key} должен ссылаться на /run/…"
+                )
 
 
 def test_gpu_profiles_split_worker() -> None:

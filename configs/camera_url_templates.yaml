@@ -29,3 +29,9 @@ vendors:
     sub: ["rtsp://{host}:{port}/profile3/media.smp"]
     default_port: 554
     verified: false
+  # Симулятор камер (qoima sim) повторяет схему путей Hikvision.
+  qoima-sim:
+    main: "rtsp://{host}:{port}/Streaming/Channels/{channel}01"
+    sub: ["rtsp://{host}:{port}/Streaming/Channels/{channel}02"]
+    default_port: 554
+    verified: true

@@ -1,8 +1,8 @@
 # MediaMTX — рестример камер (SPEC.md §3.2 шаг 3, §4). Здесь только отличия от значений
 # по умолчанию MediaMTX 1.21.
 #
-# Фаза 0: камеры ещё не подключаются (paths пуст). В Фазе 1 мастер настройки добавит пути
-# камер через API, а WebRTC-порты будут опубликованы для live-просмотра в браузере.
+# Пути камер (<camera_id>/main, <camera_id>/sub) добавляет core-api через API и
+# восстанавливает после рестарта MediaMTX (источник правды — БД core-api).
 
 logLevel: info
 logDestinations: [stdout]
@@ -36,7 +36,9 @@ rtspAddress: :8554
 rtspTransports: [tcp]
 
 webrtc: true
-webrtcAddress: :8889
+webrtcAddress: :8889          # сигнализация WHEP — только из сети backend (через core-api)
+webrtcLocalUDPAddress: :8189  # медиа WebRTC — опубликованный порт
+webrtcLocalTCPAddress: :8189  # запасной TCP, если UDP закрыт межсетевым экраном
 
 # Не нужны продукту — выключены, чтобы не открывать лишние порты.
 rtmp: false

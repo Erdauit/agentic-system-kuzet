@@ -108,6 +108,8 @@ gen_secret() {
 }
 gen_secret postgres_password
 gen_secret valkey_password
+# Пароль первого входа администратора (логин admin). При первом входе система потребует сменить его.
+gen_secret admin_initial_password
 
 if [[ -s "${SECRETS_DIR}/tls.crt" && -s "${SECRETS_DIR}/tls.key" ]]; then
     echo "   tls.crt/tls.key: уже есть, не меняю"
@@ -123,7 +125,17 @@ else
         >/dev/null 2>&1 || fail "не удалось сгенерировать TLS-сертификат (нужен OpenSSL ≥ 1.1.1)"
     echo "   tls.crt/tls.key: самоподписанный сертификат для ${HOST_FQDN}"
 fi
-chmod 644 "${SECRETS_DIR}"/*
+find "${SECRETS_DIR}" -maxdepth 1 -type f -exec chmod 644 {} +
+# Секреты, которые вводят в мастере (пароли камер, токен бота): пишет и читает только core-api
+# (uid 10001), поэтому здесь права 700/600 работают.
+mkdir -p "${SECRETS_DIR}/runtime/cameras"
+if [[ "${EUID}" -eq 0 ]]; then
+    chown -R 10001:10001 "${SECRETS_DIR}/runtime"
+    chmod 700 "${SECRETS_DIR}/runtime" "${SECRETS_DIR}/runtime/cameras"
+else
+    # Режим разработки без root: сменить владельца нельзя, а core-api работает под uid 10001.
+    chmod 777 "${SECRETS_DIR}/runtime" "${SECRETS_DIR}/runtime/cameras"
+fi
 umask 022
 
 # ---------------------------------------------------------------- 4. каталоги данных
@@ -132,8 +144,11 @@ info "Каталоги данных: ${DATA_ROOT}"
 make_dir() {
     local sub="$1" owner="$2"
     mkdir -p "${DATA_ROOT}/${sub}"
-    if [[ "${DEV}" -eq 0 ]]; then
+    if [[ "${EUID}" -eq 0 ]]; then
         chown "${owner}" "${DATA_ROOT}/${sub}"
+    else
+        # Режим разработки без root: контейнеры пишут под своими uid — каталог открыт на запись.
+        chmod 777 "${DATA_ROOT}/${sub}"
     fi
 }
 make_dir clips 10001:10001
@@ -141,6 +156,8 @@ make_dir frames 10001:10001
 make_dir datasets 10001:10001
 make_dir models 10001:10001
 make_dir models/triton 10001:10001
+make_dir config 10001:10001
+make_dir doctor 10001:10001
 make_dir postgres 999:999
 make_dir valkey 999:999
 make_dir qdrant 0:0
@@ -148,21 +165,53 @@ make_dir prometheus 65534:65534
 make_dir grafana 472:0
 
 # ---------------------------------------------------------------- 5. образы
-export QOIMA_HOME QOIMA_DATA_ROOT="${DATA_ROOT}" QOIMA_SECRETS_DIR="${SECRETS_DIR}"
+# Тег образов = версия CLI: `qoima up` запускает образы с тем же тегом.
+QOIMA_VERSION="${QOIMA_VERSION:-$("${QOIMA_BIN}" version | awk '{print $2}')}"
+export QOIMA_HOME QOIMA_DATA_ROOT="${DATA_ROOT}" QOIMA_SECRETS_DIR="${SECRETS_DIR}" QOIMA_VERSION
 COMPOSE=(docker compose --project-name qoima --file "${QOIMA_HOME}/compose/compose.yml")
 if [[ "${DEV}" -eq 0 ]]; then
     COMPOSE+=(--file "${QOIMA_HOME}/compose/compose.gpu1.yml")
 fi
 info "Загрузка сторонних образов"
 "${COMPOSE[@]}" pull --ignore-buildable --quiet
-info "Сборка образов Qoima"
+info "Сборка образов Qoima (первый раз — 10–20 минут: FFmpeg собирается из исходников)"
+"${COMPOSE[@]}" --profile build build media-base
 "${COMPOSE[@]}" build
+
+# ---------------------------------------------------------------- 5a. таймер qoima doctor
+# Контейнеры не видят драйвер, chrony и диски хоста: отчёт doctor раз в 5 минут попадает в UI
+# (мастер, шаг 2; «Время» в состоянии системы).
+if [[ "${DEV}" -eq 0 ]] && command -v systemctl >/dev/null 2>&1; then
+    info "Таймер qoima-doctor (раз в 5 минут)"
+    cat > /etc/systemd/system/qoima-doctor.service <<UNIT
+[Unit]
+Description=Qoima Vision self-diagnostics report
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/bin/qoima doctor --report
+UNIT
+    cat > /etc/systemd/system/qoima-doctor.timer <<UNIT
+[Unit]
+Description=Qoima Vision self-diagnostics every 5 minutes
+
+[Timer]
+OnBootSec=2min
+OnUnitActiveSec=5min
+
+[Install]
+WantedBy=timers.target
+UNIT
+    systemctl daemon-reload
+    systemctl enable --now qoima-doctor.timer >/dev/null
+fi
 
 # ---------------------------------------------------------------- 6. самодиагностика
 info "Самодиагностика (qoima doctor)"
 DOCTOR_ARGS=()
 [[ "${DEV}" -eq 1 ]] && DOCTOR_ARGS+=(--no-gpu)
-if QOIMA_HOME="${QOIMA_HOME}" QOIMA_DATA_ROOT="${DATA_ROOT}" "${QOIMA_BIN}" doctor "${DOCTOR_ARGS[@]}"; then
+if QOIMA_HOME="${QOIMA_HOME}" QOIMA_DATA_ROOT="${DATA_ROOT}" "${QOIMA_BIN}" doctor --report "${DOCTOR_ARGS[@]}"; then
+    info "Первый вход: логин admin, пароль — в ${SECRETS_DIR}/admin_initial_password (система попросит сменить)"
     info "Установка завершена. Запуск: $([[ "${DEV}" -eq 1 ]] && echo "QOIMA_DATA_ROOT=${DATA_ROOT} .venv-cli/bin/qoima up --no-gpu" || echo "qoima up")"
 else
     warn "doctor нашёл проблемы — исправьте их по рекомендациям и запустите qoima doctor снова"

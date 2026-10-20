@@ -84,6 +84,11 @@ class CameraConfig(Contract):
     enabled: bool = True
     scenarios: list[ScenarioKind] = Field(default_factory=list)
     location: str | None = Field(default=None, max_length=200)
+    vendor: str | None = Field(default=None, max_length=60, description="Производитель (из ONVIF)")
+    model: str | None = Field(default=None, max_length=120)
+    onvif_xaddr: str | None = Field(
+        default=None, max_length=500, description="Адрес ONVIF device service"
+    )
 
     @model_validator(mode="after")
     def _unique_scenarios(self) -> Self:
@@ -126,6 +131,13 @@ class CameraHealth(Contract):
     fps_processed: float = Field(ge=0)
     reconnects_total: int = Field(ge=0)
     decode_errors_total: int = Field(ge=0)
+    last_packet_at: AwareDatetime | None = Field(
+        default=None,
+        description="Последний полученный пакет — по нему меряется SLO обнаружения офлайна",
+    )
+    brightness: float | None = Field(
+        default=None, ge=0, le=255, description="Средняя яркость кадра"
+    )
     frozen: bool
     black: bool
     overexposed: bool
@@ -157,3 +169,21 @@ class CameraHealth(Contract):
             if flag and issue not in self.issues:
                 raise ValueError(f"флаг {issue.value} выставлен, но не указан в issues")
         return self
+
+
+class CameraRegistryEntry(Contract):
+    """Камера в реестре, который core-api публикует для vision-pipeline (без учётных данных).
+
+    Пайплайн читает потоки только через MediaMTX (SPEC.md §10): main_path и sub_path — имена путей
+    в MediaMTX, а не адреса камер.
+    """
+
+    id: Identifier
+    name: DisplayName
+    enabled: bool
+    main_path: str = Field(min_length=1, max_length=200)
+    sub_path: str | None = Field(default=None, max_length=200)
+    expected_fps: float | None = Field(
+        default=None, gt=0, description="FPS потока анализа по зондированию"
+    )
+    baseline: QualityBaseline | None = None

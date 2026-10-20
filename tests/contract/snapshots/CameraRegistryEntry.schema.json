@@ -1,0 +1,120 @@
+{
+  "$defs": {
+    "QualityBaseline": {
+      "additionalProperties": false,
+      "description": "Базовая линия качества кадра, снятая при подключении/калибровке камеры.",
+      "properties": {
+        "brightness": {
+          "description": "Средняя яркость (luma)",
+          "maximum": 255,
+          "minimum": 0,
+          "title": "Brightness",
+          "type": "number"
+        },
+        "captured_at": {
+          "format": "date-time",
+          "title": "Captured At",
+          "type": "string"
+        },
+        "noise": {
+          "description": "Оценка шума (σ)",
+          "minimum": 0,
+          "title": "Noise",
+          "type": "number"
+        },
+        "sharpness": {
+          "description": "Дисперсия Лапласиана на substream",
+          "minimum": 0,
+          "title": "Sharpness",
+          "type": "number"
+        },
+        "snapshot_key": {
+          "description": "Ключ снапшота в BlobStore",
+          "minLength": 1,
+          "title": "Snapshot Key",
+          "type": "string"
+        }
+      },
+      "required": [
+        "sharpness",
+        "brightness",
+        "noise",
+        "snapshot_key",
+        "captured_at"
+      ],
+      "title": "QualityBaseline",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "description": "Камера в реестре, который core-api публикует для vision-pipeline (без учётных данных).\n\nПайплайн читает потоки только через MediaMTX (SPEC.md §10): main_path и sub_path — имена путей\nв MediaMTX, а не адреса камер.",
+  "properties": {
+    "baseline": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/QualityBaseline"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "enabled": {
+      "title": "Enabled",
+      "type": "boolean"
+    },
+    "expected_fps": {
+      "anyOf": [
+        {
+          "exclusiveMinimum": 0,
+          "type": "number"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "FPS потока анализа по зондированию",
+      "title": "Expected Fps"
+    },
+    "id": {
+      "pattern": "^[a-z0-9][a-z0-9_\\-]{0,63}$",
+      "title": "Id",
+      "type": "string"
+    },
+    "main_path": {
+      "maxLength": 200,
+      "minLength": 1,
+      "title": "Main Path",
+      "type": "string"
+    },
+    "name": {
+      "maxLength": 120,
+      "minLength": 1,
+      "title": "Name",
+      "type": "string"
+    },
+    "sub_path": {
+      "anyOf": [
+        {
+          "maxLength": 200,
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Sub Path"
+    }
+  },
+  "required": [
+    "id",
+    "name",
+    "enabled",
+    "main_path"
+  ],
+  "title": "CameraRegistryEntry",
+  "type": "object"
+}

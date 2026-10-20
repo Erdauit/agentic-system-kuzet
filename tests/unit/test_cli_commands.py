@@ -21,7 +21,7 @@ def test_config_validate(repo_root: Path, monkeypatch: pytest.MonkeyPatch) -> No
 
 @pytest.mark.parametrize(
     ("args", "phase"),
-    [(["bench"], 3), (["sim"], 1), (["eval"], 5), (["backup"], 9), (["update", "x.tar"], 9)],
+    [(["bench"], 3), (["eval"], 5), (["backup"], 9), (["update", "x.tar"], 9)],
 )
 def test_future_commands_report_phase(args: list[str], phase: int) -> None:
     result = runner.invoke(cli_main.app, args)
@@ -34,3 +34,9 @@ def test_main_converts_not_implemented_to_exit_code(monkeypatch: pytest.MonkeyPa
     with pytest.raises(SystemExit) as exc:
         cli_main.main()
     assert exc.value.code == 2
+
+
+def test_sim_fault_validates_kind() -> None:
+    result = runner.invoke(cli_main.app, ["sim", "fault", "1", "explode"])
+    assert result.exit_code == 1
+    assert "неизвестная неисправность" in result.output

@@ -1,0 +1,117 @@
+{
+  "$defs": {
+    "DoctorGpu": {
+      "additionalProperties": false,
+      "properties": {
+        "driver": {
+          "title": "Driver",
+          "type": "string"
+        },
+        "index": {
+          "minimum": 0,
+          "title": "Index",
+          "type": "integer"
+        },
+        "name": {
+          "title": "Name",
+          "type": "string"
+        },
+        "vram_mb": {
+          "exclusiveMinimum": 0,
+          "title": "Vram Mb",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "index",
+        "name",
+        "driver",
+        "vram_mb"
+      ],
+      "title": "DoctorGpu",
+      "type": "object"
+    },
+    "DoctorLevel": {
+      "enum": [
+        "ok",
+        "warn",
+        "fail",
+        "skip"
+      ],
+      "title": "DoctorLevel",
+      "type": "string"
+    },
+    "DoctorOutcome": {
+      "additionalProperties": false,
+      "properties": {
+        "detail": {
+          "maxLength": 2000,
+          "title": "Detail",
+          "type": "string"
+        },
+        "level": {
+          "$ref": "#/$defs/DoctorLevel"
+        },
+        "name": {
+          "maxLength": 120,
+          "minLength": 1,
+          "title": "Name",
+          "type": "string"
+        },
+        "recommendation": {
+          "default": "",
+          "maxLength": 1000,
+          "title": "Recommendation",
+          "type": "string"
+        }
+      },
+      "required": [
+        "name",
+        "level",
+        "detail"
+      ],
+      "title": "DoctorOutcome",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "generated_at": {
+      "format": "date-time",
+      "title": "Generated At",
+      "type": "string"
+    },
+    "gpus": {
+      "items": {
+        "$ref": "#/$defs/DoctorGpu"
+      },
+      "title": "Gpus",
+      "type": "array"
+    },
+    "hostname": {
+      "maxLength": 255,
+      "minLength": 1,
+      "title": "Hostname",
+      "type": "string"
+    },
+    "outcomes": {
+      "items": {
+        "$ref": "#/$defs/DoctorOutcome"
+      },
+      "title": "Outcomes",
+      "type": "array"
+    },
+    "version": {
+      "title": "Version",
+      "type": "string"
+    }
+  },
+  "required": [
+    "generated_at",
+    "hostname",
+    "version",
+    "outcomes"
+  ],
+  "title": "DoctorReport",
+  "type": "object"
+}

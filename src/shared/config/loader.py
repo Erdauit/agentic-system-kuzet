@@ -104,10 +104,14 @@ def load_raw(
         sources[f"scenarios/{path.stem}"] = path
     raw["scenarios"] = scenarios
 
-    site_path = site_file
-    if site_path is None and (env := os.environ.get(ENV_SITE_FILE)):
-        site_path = Path(env)
-    if site_path is None and (config_dir / "site.yaml").is_file():
+    # site.yaml создаёт мастер настройки; до первого сохранения файла может не быть —
+    # тогда переопределений нет. Приоритет: аргумент → $QOIMA_SITE_CONFIG → configs/site.yaml.
+    site_path: Path | None = None
+    if site_file is not None:
+        site_path = site_file if site_file.is_file() else None
+    elif env := os.environ.get(ENV_SITE_FILE):
+        site_path = Path(env) if Path(env).is_file() else None
+    elif (config_dir / "site.yaml").is_file():
         site_path = config_dir / "site.yaml"
     if site_path is not None:
         site = _read_yaml(site_path)

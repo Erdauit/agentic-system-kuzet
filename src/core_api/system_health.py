@@ -21,10 +21,21 @@ from sqlalchemy import func, select, text
 from sqlalchemy.ext.asyncio import AsyncEngine
 from valkey.asyncio import Valkey
 
+from core_api.alerts.system import SystemAlertManager, effective_status
 from core_api.db import models
+from core_api.doctor_report import load_report, report_age_minutes
 from core_api.settings import Settings
 from shared.config import QoimaConfig
-from shared.schemas import ComponentHealth, ComponentKind, HealthStatus, ModelStatus, SystemHealth
+from shared.schemas import (
+    CameraHealthStatus,
+    ChannelKind,
+    ComponentHealth,
+    ComponentKind,
+    DoctorLevel,
+    HealthStatus,
+    ModelStatus,
+    SystemHealth,
+)
 from shared.schemas.health import DetailValue
 
 
@@ -43,6 +54,9 @@ class HealthDeps:
     valkey: Valkey | None
     http: httpx.AsyncClient
     alembic_head: str
+    alerts: SystemAlertManager | None = None
+    data_root: Path | None = None
+    telegram_token_present: bool = False
 
 
 CheckFn = Callable[[HealthDeps], Awaitable[Probe]]
@@ -121,16 +135,44 @@ async def check_llm(_deps: HealthDeps) -> Probe:
     )
 
 
-async def check_alert_channels(_deps: HealthDeps) -> Probe:
-    return Probe(HealthStatus.NOT_DEPLOYED, "Каналы алертов реализуются в Фазе 2")
-
-
-async def check_time(_deps: HealthDeps) -> Probe:
-    # Контейнер не видит состояние chrony/NTP хоста. До Фазы 1 время проверяет `qoima doctor`.
+async def check_alert_channels(deps: HealthDeps) -> Probe:
+    channels = deps.config.alerts.channels
+    enabled = [k.value for k in ChannelKind if channels.is_enabled(k)]
+    if channels.telegram.enabled and not deps.telegram_token_present:
+        return Probe(HealthStatus.RED, "Telegram включён, но токен бота не задан (мастер, шаг 7)")
+    if channels.local_relay.enabled and not channels.local_relay.http.url:
+        return Probe(HealthStatus.YELLOW, "Реле включено только по Modbus — подключается в Фазе 2")
+    note = "" if len(enabled) > 1 else ". Внешние каналы (Telegram, реле) не настроены"
     return Probe(
-        HealthStatus.UNKNOWN,
-        "Синхронизация времени проверяется командой `qoima doctor` на сервере; в UI — с Фазы 1",
+        HealthStatus.GREEN, f"Каналы: {', '.join(enabled)}{note}", {"enabled": ", ".join(enabled)}
     )
+
+
+async def check_time(deps: HealthDeps) -> Probe:
+    # Контейнер не видит chrony хоста: данные — из отчёта `qoima doctor --report` (таймер раз в 5 мин).
+    if deps.data_root is None:
+        return Probe(HealthStatus.UNKNOWN, "Каталог данных не настроен")
+    report = await asyncio.to_thread(load_report, deps.data_root)
+    if report is None:
+        return Probe(
+            HealthStatus.UNKNOWN,
+            "Нет отчёта qoima doctor — выполните на сервере: qoima doctor --report",
+        )
+    age = report_age_minutes(report)
+    if age > deps.config.defaults.system_alerts.doctor_report_max_age_minutes:
+        return Probe(
+            HealthStatus.UNKNOWN,
+            f"Отчёт qoima doctor устарел ({age:.0f} мин) — проверьте таймер qoima-doctor",
+        )
+    outcome = report.outcome("Время")
+    if outcome is None:
+        return Probe(HealthStatus.UNKNOWN, "В отчёте doctor нет проверки времени")
+    status = {
+        DoctorLevel.OK: HealthStatus.GREEN,
+        DoctorLevel.WARN: HealthStatus.YELLOW,
+        DoctorLevel.FAIL: HealthStatus.RED,
+    }.get(outcome.level, HealthStatus.UNKNOWN)
+    return Probe(status, f"{outcome.detail} (проверено {age:.0f} мин назад)")
 
 
 async def check_disk(deps: HealthDeps) -> Probe:
@@ -168,21 +210,29 @@ async def check_cameras(deps: HealthDeps) -> Probe:
     if deps.engine is None:
         return Probe(HealthStatus.UNKNOWN, "Нет данных: БД недоступна")
     async with deps.engine.connect() as conn:
-        count = (
-            await conn.execute(
-                select(func.count()).select_from(models.Camera).where(models.Camera.enabled)
-            )
-        ).scalar_one()
-    if count == 0:
-        return Probe(
-            HealthStatus.YELLOW,
-            "Камеры не добавлены. Подключение камер — мастер настройки (Фаза 1)",
+        ids = list(
+            (await conn.execute(select(models.Camera.id).where(models.Camera.enabled))).scalars()
         )
-    return Probe(
-        HealthStatus.UNKNOWN,
-        f"Камер: {count}. Camera Health (проверка потоков) реализуется в Фазе 1",
-        {"cameras": count},
+    if not ids:
+        return Probe(HealthStatus.YELLOW, "Камеры не добавлены — мастер настройки, шаг 3")
+    counts = dict.fromkeys(CameraHealthStatus, 0)
+    for camera_id in ids:
+        h = deps.alerts.camera_status(camera_id) if deps.alerts else None
+        stale = h is not None and deps.alerts is not None and deps.alerts.is_stale(h)
+        counts[effective_status(h, stale)] += 1
+    details: dict[str, DetailValue] = {s.value: n for s, n in counts.items()}
+    text = (
+        f"Камер: {len(ids)}; норма: {counts[CameraHealthStatus.OK]}, "
+        f"деградация: {counts[CameraHealthStatus.DEGRADED]}, нет потока: {counts[CameraHealthStatus.DOWN]}, "
+        f"нет данных: {counts[CameraHealthStatus.UNKNOWN]}"
     )
+    if counts[CameraHealthStatus.DOWN]:
+        return Probe(HealthStatus.RED, text, details)
+    if counts[CameraHealthStatus.UNKNOWN]:
+        return Probe(HealthStatus.UNKNOWN, text, details)
+    if counts[CameraHealthStatus.DEGRADED]:
+        return Probe(HealthStatus.YELLOW, text, details)
+    return Probe(HealthStatus.GREEN, text, details)
 
 
 async def check_models(deps: HealthDeps) -> Probe:

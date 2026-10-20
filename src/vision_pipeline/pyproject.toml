@@ -1,11 +1,15 @@
 [project]
 name = "qoima-vision-pipeline"
-version = "0.1.0"
+version = "0.2.0"
 description = "vision-pipeline: hot path (декодирование, инференс, трекинг, FSM, Camera Health)"
-requires-python = ">=3.11"
+requires-python = ">=3.12"
 license = "LicenseRef-Qoima-Proprietary"
 dependencies = [
-    "qoima-shared[valkey]",
+    "qoima-shared[valkey,media]",
+    # В образах собирается из исходников против LGPL-FFmpeg (docker/media-base.Dockerfile).
+    "av>=19.0.1,<20",
+    # Только imgproc/features2d (ORB для сдвига ракурса). Колесо headless: без Qt.
+    "opencv-python-headless>=4.13,<5",
 ]
 
 [tool.uv.sources]

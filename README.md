@@ -4,9 +4,13 @@ On-prem система промышленной видеоаналитики: п
 Работает полностью офлайн на одном сервере предприятия с 1–2 GPU NVIDIA.
 Спецификация — [SPEC.md](SPEC.md), правила разработки — [CLAUDE.md](CLAUDE.md).
 
-## Статус: Фаза 0 — скелет и фундамент
+## Статус: Фаза 1 — камеры, Camera Health, «Состояние системы»
 
-Готово (SPEC.md §12, Фаза 0):
+Фаза 1 (SPEC.md §12): автопоиск камер в сети объекта (ONVIF + сканирование RTSP) и подключение
+одной кнопкой, Camera Health по всем проверкам §5.9, системные алерты, вход и роли, мастер
+настройки (шаги 1–3, 7), симулятор камер `qoima sim`. Приёмка — `tests/e2e` на симуляторе.
+
+Фаза 0 (фундамент):
 
 - uv workspace: отдельный пакет и Dockerfile на каждый сервис (`src/<сервис>/`, `docker/`);
 - docker compose: базовый + профили 1 GPU / 2 GPU / engineering (`compose/`);
@@ -47,7 +51,18 @@ qoima doctor
 QOIMA_DATA_ROOT=$PWD/.data QOIMA_HTTPS_PORT=8443 .venv-cli/bin/qoima up --no-gpu
 ```
 
-UI: `https://localhost:8443/` (самоподписанный сертификат из `.secrets/tls.crt`).
+UI: `https://localhost:8443/` (самоподписанный сертификат из `.secrets/tls.crt`), вход — `admin`,
+пароль из `.secrets/admin_initial_password`. Камеры для разработки:
+
+```bash
+QOIMA_DATA_ROOT=$PWD/.data .venv-cli/bin/qoima sim up --cameras 4 --no-gpu --build
+```
+
+Приёмка Фазы 1 на запущенной системе:
+
+```bash
+QOIMA_E2E_URL=https://localhost:8443 uv run pytest tests/e2e
+```
 
 ## Разработка
 

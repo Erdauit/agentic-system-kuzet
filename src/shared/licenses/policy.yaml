@@ -98,6 +98,11 @@ reviewed:
     reason: "зависимость SQLAlchemy asyncio; MIT + PSF-2.0 (части из CPython), обе пермиссивные"
     reviewed_by: "техническое ревью (Фаза 0); требуется подтверждение юриста Qoima"
   - ecosystem: python
+    package: numpy
+    license: BSD-3-Clause AND 0BSD AND MIT AND Zlib AND CC0-1.0
+    reason: "numpy и вендорные части (pocketfft — BSD, zlib-подобные и CC0 фрагменты); все пермиссивные, без copyleft"
+    reviewed_by: "техническое ревью (Фаза 1); требуется подтверждение юриста Qoima"
+  - ecosystem: python
     package: pathspec
     license: MPL-2.0
     reason: "только dev-зависимость mypy, в образы сервисов не попадает"

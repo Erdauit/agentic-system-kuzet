@@ -31,6 +31,8 @@ x-qoima-env: &qoima-env
   QOIMA_DB_NAME: qoima
   QOIMA_DB_USER: qoima
   QOIMA_DB_PASSWORD_FILE: /run/secrets/postgres_password
+  QOIMA_SITE_CONFIG: /var/lib/qoima/config/site.yaml
+  QOIMA_MEDIAMTX_RTSP_URL: rtsp://mediamtx:8554
 
 x-service-healthcheck: &service-healthcheck
   test: ["CMD", "python", "-m", "shared.telemetry.probe", "http://127.0.0.1:8080/readyz"]
@@ -40,6 +42,16 @@ x-service-healthcheck: &service-healthcheck
   start_period: 20s
 
 services:
+  # Базовый образ с LGPL-FFmpeg для сервисов, работающих с видео. Не запускается (профиль build):
+  # собирается первым (qoima up --build, install.sh) и служит базой core-api, vision-pipeline и
+  # camera-sim (build arg MEDIA_BASE).
+  media-base:
+    image: qoima/media-base:${QOIMA_VERSION:-dev}
+    build:
+      context: ..
+      dockerfile: docker/media-base.Dockerfile
+    profiles: ["build"]
+
   postgres:
     image: postgres:16.15-bookworm
     restart: unless-stopped
@@ -101,6 +113,13 @@ services:
     restart: unless-stopped
     logging: *logging
     networks: [backend, edge]
+    ports:
+      # WebRTC (live-просмотр): медиапоток идёт напрямую браузеру; сигнализация — через core-api.
+      - "8189:8189/udp"
+      - "8189:8189/tcp"
+    environment:
+      # Адреса сервера для ICE-кандидатов WebRTC (их определяет qoima up).
+      MTX_WEBRTCADDITIONALHOSTS: ${QOIMA_HOST_IPS:-}
     volumes:
       - ../configs/mediamtx.yml:/mediamtx.yml:ro
     healthcheck:
@@ -114,6 +133,8 @@ services:
     build:
       context: ..
       dockerfile: docker/core-api.Dockerfile
+      args:
+        MEDIA_BASE: qoima/media-base:${QOIMA_VERSION:-dev}
     restart: unless-stopped
     logging: *logging
     networks: [backend, edge]
@@ -122,16 +143,26 @@ services:
     environment:
       <<: *qoima-env
       QOIMA_PORT: "8443"
+      QOIMA_METRICS_PORT: "9464"
       QOIMA_TLS_CERT_FILE: /run/secrets/tls_cert
       QOIMA_TLS_KEY_FILE: /run/secrets/tls_key
+      QOIMA_ADMIN_PASSWORD_FILE: /run/secrets/admin_initial_password
       QOIMA_UI_DIR: /app/ui
       QOIMA_QDRANT_URL: http://qdrant:6333
       QOIMA_MEDIAMTX_API_URL: http://mediamtx:9997
+      QOIMA_MEDIAMTX_WEBRTC_URL: http://mediamtx:8889
+      QOIMA_PROMETHEUS_URL: http://prometheus:9090
       QOIMA_SERVICE_URLS: vision-pipeline=http://vision-pipeline:8080,agents=http://agents:8080,worker-gpu=http://worker-gpu:8080
-    secrets: [postgres_password, valkey_password, tls_cert, tls_key]
+      QOIMA_RUNTIME_SECRETS_DIR: /run/qoima-runtime-secrets
+      QOIMA_TELEGRAM_TOKEN_FILE: /run/qoima-runtime-secrets/telegram_bot_token
+      # Подсети сервера для автопоиска камер (их определяет qoima up по сетевым интерфейсам).
+      QOIMA_HOST_SUBNETS: ${QOIMA_HOST_SUBNETS:-}
+    secrets: [postgres_password, valkey_password, tls_cert, tls_key, admin_initial_password]
     volumes:
       - ../configs:/etc/qoima/configs:ro
       - ${QOIMA_DATA_ROOT}:/var/lib/qoima
+      # Секреты, которые вводят в мастере (пароли камер, токен бота): пишет только core-api.
+      - ${QOIMA_SECRETS_DIR:-../.secrets}/runtime:/run/qoima-runtime-secrets
     depends_on:
       postgres: {condition: service_healthy}
       valkey: {condition: service_healthy}
@@ -147,6 +178,8 @@ services:
     build:
       context: ..
       dockerfile: docker/vision-pipeline.Dockerfile
+      args:
+        MEDIA_BASE: qoima/media-base:${QOIMA_VERSION:-dev}
     restart: unless-stopped
     logging: *logging
     networks: [backend]   # без edge: к камерам — только через MediaMTX
@@ -155,7 +188,7 @@ services:
     secrets: [valkey_password]
     volumes:
       - ../configs:/etc/qoima/configs:ro
-      - ${QOIMA_DATA_ROOT}:/var/lib/qoima
+      - ${QOIMA_DATA_ROOT}:/var/lib/qoima:ro
     depends_on:
       valkey: {condition: service_healthy}
       mediamtx: {condition: service_healthy}
@@ -246,3 +279,5 @@ secrets:
     file: ${QOIMA_SECRETS_DIR:-../.secrets}/tls.crt
   tls_key:
     file: ${QOIMA_SECRETS_DIR:-../.secrets}/tls.key
+  admin_initial_password:
+    file: ${QOIMA_SECRETS_DIR:-../.secrets}/admin_initial_password

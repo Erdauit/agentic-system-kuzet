@@ -37,7 +37,24 @@ images:
   qoima/worker-gpu:
     license: LicenseRef-Qoima-Proprietary
     first_party: true
+  qoima/media-base:
+    license: LicenseRef-Qoima-Proprietary
+    first_party: true
+    note: "внутри FFmpeg 9.0.2 собран только под LGPL (без --enable-gpl, x264, x265) + libopenh264 (BSD-2-Clause); проверяется при сборке"
+  qoima/camera-sim:
+    license: LicenseRef-Qoima-Proprietary
+    first_party: true
+    only_in: [compose.sim.yml]
+    note: "симулятор камер для разработки и e2e; не входит в поставку объекта"
   grafana/grafana:
     license: AGPL-3.0-only
     # SPEC.md §2.7: Grafana — только опциональный профиль engineering, не часть поставки по умолчанию.
     only_in: [compose.engineering.yml]
+
+# Нативные библиотеки внутри Python-колёс и образов (гейт видит только метаданные пакетов).
+# Каждая запись требует подтверждения юриста Qoima (docs/DATA_LICENSES.md).
+native:
+  ffmpeg (media-base): "LGPL-2.1-or-later; собирается из исходников без GPL-компонентов"
+  libopenh264 (media-base): "BSD-2-Clause; используется только кодировщиком симулятора"
+  opencv-python-headless (vision-pipeline): "Apache-2.0; внутри FFmpeg (LGPL-2.1), OpenSSL 1.1.1 (OpenSSL License), libgfortran (GPL-3.0 WITH GCC-exception-3.1), OpenBLAS (BSD-3), libpng, libvpx/libaom/dav1d (BSD)"
+  pyav-pypi-wheel: "НЕ используется в образах: колесо PyPI содержит libx264/libx265 (GPL). PyAV собирается из исходников (--no-binary-package av)"

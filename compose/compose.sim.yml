@@ -1,0 +1,22 @@
+# Симулятор камер для разработки и e2e-тестов: `qoima sim up --cameras 4`.
+# Каждая реплика — отдельная «IP-камера» в сети edge: RTSP :554 (пути как у Hikvision) и
+# ONVIF :80 + WS-Discovery :3702. Логин/пароль: admin / qoima-sim. Не для объекта.
+services:
+  camera-sim:
+    image: qoima/camera-sim:${QOIMA_VERSION:-dev}
+    build:
+      context: ..
+      dockerfile: docker/camera-sim/Dockerfile
+      args:
+        MEDIA_BASE: qoima/media-base:${QOIMA_VERSION:-dev}
+    restart: unless-stopped
+    networks: [edge]
+    environment:
+      SIM_USER: admin
+      SIM_PASSWORD: qoima-sim
+      SIM_FPS: "15"
+    healthcheck:
+      test: ["CMD", "python3", "-c", "import socket; socket.create_connection(('127.0.0.1', 554), 2)"]
+      interval: 10s
+      timeout: 5s
+      retries: 6

@@ -104,6 +104,8 @@ def configure_logging(service: str, level: str = "INFO", *, json_output: bool = 
         lg = logging.getLogger(name)
         lg.handlers.clear()
         lg.propagate = True
+    # Каждый HTTP-запрос клиента httpx (health-проверки раз в 10 с) — шум; оставляем предупреждения.
+    logging.getLogger("httpx").setLevel(max(log_level, logging.WARNING))
 
 
 def get_logger(name: str | None = None) -> Any:

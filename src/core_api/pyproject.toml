@@ -1,11 +1,13 @@
 [project]
 name = "qoima-core-api"
-version = "0.1.0"
+version = "0.2.0"
 description = "core-api: REST/WebSocket API, health, события, алерты, реестр моделей"
-requires-python = ">=3.11"
+requires-python = ">=3.12"
 license = "LicenseRef-Qoima-Proprietary"
 dependencies = [
-    "qoima-shared[postgres,valkey]",
+    "qoima-shared[postgres,valkey,media]",
+    # В образах собирается из исходников против LGPL-FFmpeg (docker/media-base.Dockerfile).
+    "av>=19.0.1,<20",
     "fastapi>=0.115,<1",
     "uvicorn>=0.32,<1",
     "alembic>=1.14,<2",

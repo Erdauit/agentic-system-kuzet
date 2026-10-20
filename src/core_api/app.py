@@ -2,31 +2,51 @@
 
 from __future__ import annotations
 
+import asyncio
+import contextlib
 import shutil
-from collections.abc import AsyncIterator
+from collections.abc import AsyncIterator, Awaitable, Callable
 from contextlib import asynccontextmanager
 from pathlib import Path
 
 import httpx
 from fastapi import FastAPI, HTTPException
-from fastapi.responses import FileResponse, JSONResponse, Response
+from fastapi.responses import FileResponse, JSONResponse
 from prometheus_client import (
-    CONTENT_TYPE_LATEST,
     CollectorRegistry,
     Gauge,
+    Histogram,
     PlatformCollector,
     ProcessCollector,
-    generate_latest,
+    start_http_server,
 )
 
 from core_api import __version__
+from core_api.alerts.channels import ChannelDispatcher
+from core_api.alerts.system import SystemAlertManager
+from core_api.auth.service import AuthService
+from core_api.cameras.credentials import CredentialStore
+from core_api.cameras.jobs import DiscoveryJobs
+from core_api.cameras.mediamtx import MediaMtxClient
+from core_api.cameras.service import CameraService
+from core_api.context import AppContext
 from core_api.db.migrate import head_revision
-from core_api.routers import health
+from core_api.metrics_query import PrometheusClient
+from core_api.realtime import Broadcaster
+from core_api.routers import auth, cameras, health, realtime, setup, system_alerts, users
 from core_api.settings import Settings
-from core_api.system_health import HealthDeps
-from shared.config import QoimaConfig, load_config
-from shared.storage import postgres, valkey
+from core_api.site_config import SiteConfigStore
+from core_api.system_health import HealthDeps, collect
+from shared.config import QoimaConfig, load_config, resolve_config_dir
+from shared.storage import LocalFSBlobStore, postgres, valkey
+from shared.storage.secrets import SecretNotFoundError, read_secret
 from shared.telemetry import build_info, create_metric, get_logger
+
+log = get_logger("core-api")
+
+# Периодическая синхронизация MediaMTX: пути, добавленные через API, теряются при его рестарте.
+MEDIAMTX_RESYNC_S = 60
+SESSION_PURGE_S = 3600
 
 
 def _metrics_registry() -> CollectorRegistry:
@@ -58,7 +78,7 @@ def _mount_ui(app: FastAPI, ui_dir: Path | None) -> None:
 
     @app.get("/{path:path}", include_in_schema=False)
     async def spa(path: str) -> FileResponse:
-        if path.startswith(("api/", "metrics")):
+        if path.startswith("api/"):
             raise HTTPException(status_code=404)
         candidate = (root / path).resolve()
         if path and candidate.is_file() and candidate.is_relative_to(root):
@@ -66,23 +86,39 @@ def _mount_ui(app: FastAPI, ui_dir: Path | None) -> None:
         return FileResponse(index)
 
 
+async def _periodic(name: str, interval_s: float, fn: Callable[[], Awaitable[None]]) -> None:
+    while True:
+        try:
+            await fn()
+        except asyncio.CancelledError:
+            raise
+        except Exception as exc:  # фоновые задачи не должны падать насовсем
+            log.warning("background_task_failed", task=name, error=str(exc))
+        await asyncio.sleep(interval_s)
+
+
 def create_app(
     settings: Settings | None = None,
     *,
     config: QoimaConfig | None = None,
     health_deps: HealthDeps | None = None,
+    context_factory: Callable[[FastAPI], Awaitable[AppContext]] | None = None,
 ) -> FastAPI:
-    """health_deps передают тесты; в рабочем режиме зависимости создаются в lifespan."""
+    """health_deps/context_factory передают тесты; в рабочем режиме всё создаётся в lifespan."""
     settings = settings or Settings.from_env()
     registry = _metrics_registry()
     disk_gauge = create_metric("disk_free_bytes", registry)
     if not isinstance(disk_gauge, Gauge):
         raise TypeError("disk_free_bytes в каталоге метрик должен быть gauge")
+    offline_detection = Histogram(
+        "camera_offline_detection_seconds",
+        "От последнего пакета камеры до системного алерта «нет потока» (SLO ≤ 15 с)",
+        buckets=(1, 2, 5, 8, 10, 12, 15, 20, 30, 60),
+        registry=registry,
+    )
 
-    def watch_disk(cfg: QoimaConfig) -> None:
+    def watch_disk(root: Path) -> None:
         # Значение считается при каждом скрейпе Prometheus, а не только при открытии UI.
-        root = cfg.defaults.storage.data_root
-
         def free_bytes() -> float:
             try:
                 return float(shutil.disk_usage(root).free)
@@ -91,35 +127,137 @@ def create_app(
 
         disk_gauge.labels(volume="data").set_function(free_bytes)
 
+    async def build_context(app: FastAPI, cfg: QoimaConfig, http: httpx.AsyncClient) -> AppContext:
+        engine = postgres.create_engine()
+        vk = valkey.create_client()
+        data_root = settings.data_root or cfg.defaults.storage.data_root
+        broadcaster = Broadcaster()
+        dispatcher = ChannelDispatcher(http)
+        auth_service = AuthService(engine, cfg.defaults.auth)
+        blobs = LocalFSBlobStore(data_root)
+        holder: dict[str, AppContext] = {}
+
+        def current_config() -> QoimaConfig:
+            # До создания контекста (конструкторы сервисов) — стартовая конфигурация.
+            return holder["ctx"].config if "ctx" in holder else cfg
+
+        def names() -> dict[str, str]:
+            return holder["ctx"].camera_names if "ctx" in holder else {}
+
+        mediamtx = (
+            MediaMtxClient(settings.mediamtx_api_url, http) if settings.mediamtx_api_url else None
+        )
+        camera_service = CameraService(
+            engine,
+            vk,
+            blobs,
+            CredentialStore(settings.runtime_secrets_dir),
+            mediamtx,
+            current_config,
+            settings.mediamtx_rtsp_url,
+        )
+        alerts = SystemAlertManager(
+            engine, vk, broadcaster, dispatcher, current_config, names, offline_detection
+        )
+        site_file = settings.site_config or (data_root / "config" / "site.yaml")
+        ctx = AppContext(
+            settings=settings,
+            config=cfg,
+            engine=engine,
+            valkey=vk,
+            http=http,
+            blobs=blobs,
+            auth=auth_service,
+            cameras=camera_service,
+            alerts=alerts,
+            dispatcher=dispatcher,
+            broadcaster=broadcaster,
+            discovery=DiscoveryJobs(
+                current_config, broadcaster, settings.host_subnets, ["mediamtx"]
+            ),
+            site=SiteConfigStore(resolve_config_dir(settings.config_dir), site_file),
+            prometheus=PrometheusClient(settings.prometheus_url, http)
+            if settings.prometheus_url
+            else None,
+            data_root=data_root,
+            runtime_secrets=settings.runtime_secrets_dir,
+        )
+        holder["ctx"] = ctx
+        return ctx
+
     @asynccontextmanager
     async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         if health_deps is not None:
-            watch_disk(health_deps.config)
+            watch_disk(health_deps.config.defaults.storage.data_root)
             app.state.health_deps = health_deps
+            if context_factory is not None:
+                app.state.ctx = await context_factory(app)
+                app.state.auth = app.state.ctx.auth
             yield
             return
-        cfg = config or load_config(settings.config_dir)
-        watch_disk(cfg)
-        engine = postgres.create_engine()
-        vk = valkey.create_client()
+        cfg = config or load_config(settings.config_dir, settings.site_config)
         timeout = cfg.defaults.health.component_timeout_s
         async with httpx.AsyncClient(timeout=timeout) as http:
-            app.state.health_deps = HealthDeps(
+            ctx = await build_context(app, cfg, http)
+            app.state.ctx = ctx
+            app.state.auth = ctx.auth
+            watch_disk(ctx.data_root)
+            deps = HealthDeps(
                 config=cfg,
                 settings=settings,
-                engine=engine,
-                valkey=vk,
+                engine=ctx.engine,
+                valkey=ctx.valkey,
                 http=http,
                 alembic_head=head_revision(),
+                alerts=ctx.alerts,
+                data_root=ctx.data_root,
             )
-            get_logger("core-api").info(
-                "core_api_started", version=__version__, site=cfg.defaults.site.name
-            )
+            app.state.health_deps = deps
+
+            try:
+                admin_password: str | None = read_secret(
+                    "admin_initial_password", path_env="QOIMA_ADMIN_PASSWORD_FILE"
+                ).get_secret_value()
+            except SecretNotFoundError:
+                admin_password = None
+            await ctx.auth.bootstrap_admin(admin_password)
+            await ctx.refresh_camera_names()
+
+            async def health_tick() -> None:
+                deps.config = ctx.config
+                deps.telegram_token_present = (
+                    ctx.runtime_secrets / ctx.config.alerts.channels.telegram.bot_token_secret
+                ).is_file()
+                await ctx.alerts.handle_system_health(await collect(deps))
+
+            tasks: list[asyncio.Task[None]] = []
+            if settings.background_tasks:
+                tasks = [
+                    asyncio.create_task(ctx.alerts.consume()),
+                    asyncio.create_task(ctx.alerts.watch_silence()),
+                    asyncio.create_task(
+                        _periodic("mediamtx_sync", MEDIAMTX_RESYNC_S, ctx.cameras.sync)
+                    ),
+                    asyncio.create_task(
+                        _periodic(
+                            "health", cfg.defaults.system_alerts.health_poll_interval_s, health_tick
+                        )
+                    ),
+                    asyncio.create_task(
+                        _periodic("session_purge", SESSION_PURGE_S, ctx.auth.purge_expired)
+                    ),
+                ]
+            log.info("core_api_started", version=__version__, site=cfg.defaults.site.name)
             try:
                 yield
             finally:
-                await vk.aclose()
-                await engine.dispose()
+                for t in tasks:
+                    t.cancel()
+                for t in tasks:
+                    with contextlib.suppress(asyncio.CancelledError):
+                        await t
+                await ctx.valkey.aclose()
+                await ctx.engine.dispose()
 
     app = FastAPI(
         title="Qoima Vision core-api",
@@ -129,12 +267,19 @@ def create_app(
         openapi_url="/api/openapi.json",
         redoc_url=None,
     )
-    app.include_router(health.router)
-
-    # Явный маршрут, а не mount: Prometheus запрашивает ровно /metrics (без завершающего «/»).
-    @app.get("/metrics", include_in_schema=False)
-    async def metrics() -> Response:
-        return Response(generate_latest(registry), media_type=CONTENT_TYPE_LATEST)
-
+    for r in (
+        health.router,
+        auth.router,
+        users.router,
+        cameras.router,
+        setup.router,
+        system_alerts.router,
+        realtime.router,
+    ):
+        app.include_router(r)
+    app.state.metrics_registry = registry
+    if settings.metrics_port is not None:
+        # /metrics — на отдельном внутреннем порту: на публичном порту UI метрики не видны.
+        start_http_server(settings.metrics_port, registry=registry)
     _mount_ui(app, settings.ui_dir)
     return app

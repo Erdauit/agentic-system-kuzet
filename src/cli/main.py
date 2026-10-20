@@ -23,8 +23,10 @@ from rich.table import Table
 from cli import __version__
 from cli.compose import ComposeError, ComposePlan, build_plan, count_gpus, parse_ps
 from cli.doctor import (
+    Gpu,
     Level,
     Outcome,
+    check_cameras,
     check_config,
     check_containers,
     check_disk,
@@ -34,8 +36,17 @@ from cli.doctor import (
     check_os,
     check_secrets,
     check_time,
+    write_report,
 )
-from cli.paths import DATA_DIRS, HomeNotFoundError, data_root, qoima_home, secrets_dir
+from cli.netinfo import host_addresses
+from cli.paths import (
+    DATA_DIRS,
+    RUNTIME_SECRETS,
+    HomeNotFoundError,
+    data_root,
+    qoima_home,
+    secrets_dir,
+)
 from cli.runner import Runner, run_command
 from shared.config import ConfigError, QoimaConfig, load_config
 
@@ -97,6 +108,7 @@ def _plan(
     cfg: QoimaConfig, home: Path, runner: Runner, *, no_gpu: bool, engineering: bool
 ) -> ComposePlan:
     gpus = 0 if no_gpu else count_gpus(runner)
+    addresses = host_addresses(runner)
     try:
         return build_plan(
             home,
@@ -106,6 +118,8 @@ def _plan(
             data_root=data_root(cfg.defaults.storage.data_root),
             secrets_dir=secrets_dir(home),
             https_port=_https_port(),
+            host_subnets=sorted({str(a.network) for a in addresses}),
+            host_ips=[str(a.ip) for a in addresses],
         )
     except ComposeError as exc:
         _fail(str(exc))
@@ -166,12 +180,20 @@ def up(
             _fail(
                 f"нет прав на {root / sub}. Запустите ./install.sh от root — он создаст каталоги данных"
             )
+    (secrets_dir(home) / RUNTIME_SECRETS).mkdir(mode=0o700, exist_ok=True)
     if plan.gpu_profile == "none":
         err_console.print("[yellow]Режим разработки без GPU: Triton и DCGM не запускаются.[/]")
-    console.print(f"Запуск ({plan.gpu_profile}{', engineering' if engineering else ''})…")
-    args = ["up", "--detach", "--wait", "--wait-timeout", str(wait_timeout), "--remove-orphans"]
+    subnets = plan.env.get("QOIMA_HOST_SUBNETS") or "не найдены"
+    console.print(f"Подсети сервера для автопоиска камер: {subnets}")
     if build:
-        args.append("--build")
+        console.print("Сборка образов (первый раз — долго: FFmpeg собирается из исходников)…")
+        if (
+            _compose(plan, "--profile", "build", "build", "media-base", timeout_s=3600) != 0
+            or _compose(plan, "build", timeout_s=3600) != 0
+        ):
+            _fail("сборка образов не удалась")
+    console.print(f"Запуск ({plan.gpu_profile}{', engineering' if engineering else ''})…")
+    args = ["up", "--detach", "--wait", "--wait-timeout", str(wait_timeout)]
     code = _compose(plan, *args, timeout_s=wait_timeout + 600)
     if code != 0:
         _fail("не все сервисы стали healthy. Подробности: qoima status, qoima doctor", code)
@@ -243,11 +265,18 @@ def doctor(
     no_gpu: NoGpuOpt = False,
     engineering: EngineeringOpt = False,
     config_dir: ConfigDirOpt = None,
+    report: Annotated[
+        bool,
+        typer.Option(
+            "--report", help="Записать отчёт для UI (мастер, шаг 2; «Время» в состоянии системы)"
+        ),
+    ] = False,
 ) -> None:
-    """Полная самодиагностика: драйвер, CUDA, Docker, toolkit, диск, время, секреты, контейнеры."""
+    """Полная самодиагностика: драйвер, CUDA, Docker, toolkit, диск, время, секреты, контейнеры, камеры."""
     home = _home()
     runner: Runner = run_command
     outcomes: list[Outcome] = []
+    gpus: list[Gpu] = []
 
     os_release_path = Path("/etc/os-release")
     outcomes.append(
@@ -264,7 +293,7 @@ def doctor(
     if no_gpu:
         outcomes.append(Outcome("Драйвер NVIDIA", Level.SKIP, "режим разработки --no-gpu"))
     else:
-        nvidia_outcomes, _gpus = check_nvidia(runner, cfg)
+        nvidia_outcomes, gpus = check_nvidia(runner, cfg)
         outcomes.extend(nvidia_outcomes)
     outcomes.extend(check_docker(runner, cfg))
     if not no_gpu:
@@ -284,11 +313,17 @@ def doctor(
             secrets_dir=secrets_dir(home),
             https_port=_https_port(),
         )
-        outcomes.extend(check_containers(runner, plan))
+        container_outcomes = check_containers(runner, plan)
+        outcomes.extend(container_outcomes)
+        if any(o.name == "сервис core-api" and o.level is Level.OK for o in container_outcomes):
+            outcomes.extend(check_cameras(runner, plan))
     except ComposeError as exc:
         outcomes.append(Outcome("Контейнеры", Level.SKIP, str(exc)))
 
     _render_outcomes("qoima doctor", outcomes)
+    if report:
+        path = write_report(data_root(cfg.defaults.storage.data_root), outcomes, gpus, __version__)
+        console.print(f"Отчёт записан: {path}")
     failed = [o for o in outcomes if o.level is Level.FAIL]
     if failed:
         err_console.print(
@@ -327,10 +362,109 @@ def eval_() -> None:
     _later("eval", 5)
 
 
-@app.command()
-def sim() -> None:
-    """Симулятор камер из samples/ (Фаза 1)."""
-    _later("sim", 1)
+sim_app = typer.Typer(
+    help="Симулятор IP-камер для разработки и проверки (RTSP + ONVIF).", no_args_is_help=True
+)
+app.add_typer(sim_app, name="sim")
+user_app = typer.Typer(help="Пользователи (сброс пароля и т.п.).", no_args_is_help=True)
+app.add_typer(user_app, name="user")
+
+SIM_FAULTS = ("none", "freeze", "blur", "black", "overexposed", "occlude", "shift", "stop")
+
+
+def _sim_plan(no_gpu: bool, engineering: bool, config_dir: Path | None) -> ComposePlan:
+    home = _home()
+    return _plan(
+        _load(config_dir, home), home, run_command, no_gpu=no_gpu, engineering=engineering
+    ).with_sim()
+
+
+@sim_app.command("up")
+def sim_up(
+    cameras: Annotated[
+        int, typer.Option("--cameras", min=1, max=32, help="Сколько камер поднять")
+    ] = 4,
+    no_gpu: NoGpuOpt = False,
+    engineering: EngineeringOpt = False,
+    build: Annotated[bool, typer.Option("--build", help="Пересобрать образ симулятора")] = False,
+    config_dir: ConfigDirOpt = None,
+) -> None:
+    """Поднять N симулированных камер в сети edge (их найдёт «Найти камеры» в мастере)."""
+    plan = _sim_plan(no_gpu, engineering, config_dir)
+    if (
+        build
+        and _compose(
+            plan, "--profile", "build", "build", "media-base", "camera-sim", timeout_s=3600
+        )
+        != 0
+    ):
+        _fail("сборка симулятора не удалась")
+    args = [
+        "up",
+        "--detach",
+        "--wait",
+        "--no-deps",
+        "--scale",
+        f"camera-sim={cameras}",
+        "camera-sim",
+    ]
+    if _compose(plan, *args, timeout_s=900) != 0:
+        _fail("симулятор не запустился")
+    console.print(
+        f"[green]Симулятор: {cameras} камер.[/] Логин/пароль: admin / qoima-sim. "
+        "Мастер → Камеры → «Найти камеры». Неисправность: qoima sim fault <N> freeze|blur|stop|…"
+    )
+
+
+@sim_app.command("down")
+def sim_down(
+    no_gpu: NoGpuOpt = False, engineering: EngineeringOpt = False, config_dir: ConfigDirOpt = None
+) -> None:
+    """Остановить симулятор камер."""
+    plan = _sim_plan(no_gpu, engineering, config_dir)
+    code = _compose(plan, "rm", "--stop", "--force", "camera-sim")
+    raise typer.Exit(code)
+
+
+@sim_app.command("fault")
+def sim_fault(
+    camera: Annotated[int, typer.Argument(help="Номер симулированной камеры (1..N)")],
+    fault: Annotated[
+        str,
+        typer.Argument(help="none | freeze | blur | black | overexposed | occlude | shift | stop"),
+    ],
+) -> None:
+    """Включить неисправность на симулированной камере (none — вернуть в норму)."""
+    if fault not in SIM_FAULTS:
+        _fail(f"неизвестная неисправность {fault!r}; допустимо: {', '.join(SIM_FAULTS)}")
+    container = f"qoima-camera-sim-{camera}"
+    result = run_command(
+        ["docker", "exec", container, "sh", "-c", f"echo {fault} > /run/sim/fault"]
+    )
+    if not result.ok:
+        _fail(f"не удалось изменить {container}: {result.stderr.strip()}")
+    console.print(f"Камера-симулятор {camera}: {fault}")
+
+
+@user_app.command("reset-password")
+def user_reset_password(
+    username: Annotated[str, typer.Argument(help="Логин пользователя, например admin")],
+    no_gpu: NoGpuOpt = False,
+    engineering: EngineeringOpt = False,
+    config_dir: ConfigDirOpt = None,
+) -> None:
+    """Выдать временный пароль (при входе потребуется смена). Нужна запущенная система."""
+    home = _home()
+    plan = _plan(_load(config_dir, home), home, run_command, no_gpu=no_gpu, engineering=engineering)
+    result = run_command(
+        plan.command(
+            "exec", "-T", "core-api", "python", "-m", "core_api.manage", "reset-password", username
+        ),
+        env=plan.process_env(),
+    )
+    if not result.ok:
+        _fail(result.stderr.strip() or "не удалось сбросить пароль (система запущена?)")
+    console.print(f"Временный пароль для {username}: [bold]{result.stdout.strip()}[/]")
 
 
 @app.command()

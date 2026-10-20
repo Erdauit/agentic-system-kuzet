@@ -3,11 +3,11 @@
 # В Docker-образах каждый сервис ставится отдельно: `uv sync --package <сервис>` (SPEC.md §11).
 [project]
 name = "qoima-vision"
-version = "0.1.0"
+version = "0.2.0"
 description = "Qoima Vision — on-prem система промышленной видеоаналитики (корень workspace)"
-requires-python = ">=3.11"
+requires-python = ">=3.12"
 dependencies = [
-    "qoima-shared[postgres,valkey]",
+    "qoima-shared[postgres,valkey,media]",
     "qoima-cli",
     "qoima-core-api",
     "qoima-vision-pipeline",
@@ -49,7 +49,7 @@ qoima-workers = { workspace = true }
 # ---------------------------------------------------------------- ruff
 [tool.ruff]
 line-length = 100
-target-version = "py311"
+target-version = "py312"
 src = ["src", "tests"]
 
 [tool.ruff.lint]
@@ -70,7 +70,7 @@ ignore = [
 
 # ---------------------------------------------------------------- mypy
 [tool.mypy]
-python_version = "3.11"
+python_version = "3.12"
 mypy_path = "src"
 explicit_package_bases = true
 plugins = ["pydantic.mypy"]
@@ -100,6 +100,7 @@ asyncio_default_fixture_loop_scope = "function"
 addopts = "-ra --strict-markers"
 markers = [
     "integration: тесты с реальными Postgres/Valkey (нужны переменные QOIMA_TEST_*)",
+    "e2e: приёмка на запущенной системе и симуляторе камер (нужен QOIMA_E2E_URL)",
 ]
 filterwarnings = [
     "error::DeprecationWarning:shared.*",

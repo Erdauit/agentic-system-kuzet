@@ -15,6 +15,7 @@ export default defineConfig({
         target: "https://localhost:8443",
         changeOrigin: true,
         secure: false,
+        ws: true, // WebSocket /api/v1/ws
       },
     },
   },

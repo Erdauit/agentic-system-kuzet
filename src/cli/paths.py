@@ -5,7 +5,15 @@ from __future__ import annotations
 import os
 from pathlib import Path
 
-REQUIRED_SECRETS = ("postgres_password", "valkey_password", "tls.crt", "tls.key")
+REQUIRED_SECRETS = (
+    "postgres_password",
+    "valkey_password",
+    "tls.crt",
+    "tls.key",
+    "admin_initial_password",
+)
+# Каталог секретов, которые вводят в мастере (пароли камер, токен бота); пишет core-api (uid 10001).
+RUNTIME_SECRETS = "runtime"
 
 # Подкаталоги данных и владельцы (uid:gid процессов в контейнерах). Создаёт install.sh.
 DATA_DIRS: dict[str, tuple[int, int]] = {
@@ -14,6 +22,8 @@ DATA_DIRS: dict[str, tuple[int, int]] = {
     "datasets": (10001, 10001),
     "models": (10001, 10001),
     "models/triton": (10001, 10001),
+    "config": (10001, 10001),
+    "doctor": (10001, 10001),
     "postgres": (999, 999),
     "valkey": (999, 999),
     "qdrant": (0, 0),

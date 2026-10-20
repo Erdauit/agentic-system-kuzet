@@ -22,6 +22,8 @@ from shared.schemas import (
     Role,
     RoutingDecision,
     Severity,
+    SystemAlertKind,
+    SystemAlertSeverity,
     TaskType,
     ToolCallStatus,
     ZoneKind,
@@ -43,6 +45,8 @@ EXPECTED: dict[tuple[str, str], set[str]] = {
     ("models", "task_type"): {e.value for e in TaskType},
     ("models", "source"): {e.value for e in ModelSource},
     ("models", "status"): {e.value for e in ModelStatus},
+    ("system_alerts", "kind"): {e.value for e in SystemAlertKind},
+    ("system_alerts", "severity"): {e.value for e in SystemAlertSeverity},
 }
 
 

@@ -64,11 +64,38 @@
       "title": "Main Url",
       "type": "string"
     },
+    "model": {
+      "anyOf": [
+        {
+          "maxLength": 120,
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Model"
+    },
     "name": {
       "maxLength": 120,
       "minLength": 1,
       "title": "Name",
       "type": "string"
+    },
+    "onvif_xaddr": {
+      "anyOf": [
+        {
+          "maxLength": 500,
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "Адрес ONVIF device service",
+      "title": "Onvif Xaddr"
     },
     "scenarios": {
       "items": {
@@ -91,6 +118,20 @@
       ],
       "default": null,
       "title": "Sub Url"
+    },
+    "vendor": {
+      "anyOf": [
+        {
+          "maxLength": 60,
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "Производитель (из ONVIF)",
+      "title": "Vendor"
     }
   },
   "required": [

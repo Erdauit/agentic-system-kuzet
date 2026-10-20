@@ -4,13 +4,17 @@ from __future__ import annotations
 
 import asyncio
 import json
+import uuid
 from pathlib import Path
 
 import httpx
 import pytest
 from fastapi.testclient import TestClient
+from prometheus_client import generate_latest
 
 from core_api.app import create_app
+from core_api.auth.deps import current_user
+from core_api.auth.service import AuthUser
 from core_api.settings import Settings, _parse_service_urls
 from core_api.system_health import (
     CHECKS,
@@ -21,7 +25,7 @@ from core_api.system_health import (
     service_check,
 )
 from shared.config import QoimaConfig
-from shared.schemas import ComponentKind, HealthStatus
+from shared.schemas import ComponentKind, HealthStatus, Role
 
 
 def _deps(config: QoimaConfig, transport: httpx.MockTransport, **settings: object) -> HealthDeps:
@@ -131,27 +135,31 @@ async def test_full_collect_without_infrastructure(config: QoimaConfig, tmp_path
     assert by_name["cameras"] is HealthStatus.UNKNOWN
 
 
+def _fake_user() -> AuthUser:
+    return AuthUser(uuid.uuid4(), "op", "Оператор", Role.OPERATOR, must_change_password=False)
+
+
 def test_routes_and_spa(config: QoimaConfig, tmp_path: Path) -> None:
     ui = tmp_path / "ui"
     (ui / "assets").mkdir(parents=True)
     (ui / "index.html").write_text("<html>qoima</html>")
     (ui / "assets" / "app.js").write_text("console.log(1)")
 
-    async def fine(_: HealthDeps) -> Probe:
-        return Probe(HealthStatus.GREEN, "ok")
-
     deps = _deps(config, _readyz([]))
     app = create_app(Settings(ui_dir=ui), config=config, health_deps=deps)
     with TestClient(app) as client:
         assert client.get("/api/v1/healthz").json()["status"] == "alive"
+        # Без входа «Состояние системы» закрыто.
+        assert client.get("/api/v1/health").status_code == 401
+        app.dependency_overrides[current_user] = _fake_user
         health = client.get("/api/v1/health")
         assert health.status_code == 200
         body = health.json()
         assert {c["component"] for c in body["components"]} == {c.name for c in CHECKS}
-        metrics = client.get("/metrics", follow_redirects=False)  # ровно так скрейпит Prometheus
-        assert metrics.status_code == 200
-        assert "qoima_build_info" in metrics.text
-        assert 'disk_free_bytes{volume="data"}' in metrics.text
+        # Метрики не публикуются на порту UI — только на внутреннем QOIMA_METRICS_PORT.
+        assert "qoima_build_info" not in client.get("/metrics").text
+        exported = generate_latest(app.state.metrics_registry).decode()
+        assert "qoima_build_info" in exported and 'disk_free_bytes{volume="data"}' in exported
         assert client.get("/").text == "<html>qoima</html>"
         assert client.get("/health").text == "<html>qoima</html>"  # прямая ссылка на раздел SPA
         assert client.get("/assets/app.js").text == "console.log(1)"

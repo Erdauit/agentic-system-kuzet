@@ -2,7 +2,7 @@
 
 PACKAGES := -p shared -p cli -p core_api -p vision_pipeline -p agents -p workers
 
-.PHONY: help sync lint format typecheck test test-integration license-gate schemas \
+.PHONY: help sync lint format typecheck test test-integration e2e license-gate schemas \
         ui-install ui-build ui-typecheck compose-config ci clean
 
 help:
@@ -11,6 +11,7 @@ help:
 	@echo "typecheck         — mypy (strict для shared/)"
 	@echo "test              — юнит и контрактные тесты"
 	@echo "test-integration  — интеграционные тесты (нужны QOIMA_TEST_DATABASE_URL, QOIMA_TEST_VALKEY_URL)"
+	@echo "e2e               — приёмка Фазы 1 на запущенной системе с симулятором камер"
 	@echo "license-gate      — лицензионный гейт Python + npm"
 	@echo "schemas           — обновить снапшоты JSON Schema контрактов"
 	@echo "ui-build          — собрать UI"
@@ -36,6 +37,10 @@ test:
 
 test-integration:
 	uv run pytest tests/integration -m integration
+
+# Приёмка Фазы 1: нужна запущенная система и симулятор (qoima up, qoima sim up --cameras 4).
+e2e:
+	QOIMA_E2E_URL=$${QOIMA_E2E_URL:-https://localhost:8443} uv run pytest tests/e2e -m e2e
 
 license-gate:
 	uv run qoima-license-gate python

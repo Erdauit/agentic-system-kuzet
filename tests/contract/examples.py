@@ -62,6 +62,59 @@ def _delivery() -> dict[str, Any]:
     }
 
 
+SUB_PROBE = {
+    "role": "sub",
+    "url": "rtsp://10.0.5.17:554/Streaming/Channels/102",
+    "codec": "h264",
+    "width": 640,
+    "height": 360,
+    "fps": 15.0,
+    "bitrate_kbps": 400,
+    "gop_seconds": 2.0,
+    "probed_at": T0,
+}
+MAIN_PROBE = {
+    **SUB_PROBE,
+    "role": "main",
+    "url": "rtsp://10.0.5.17:554/Streaming/Channels/101",
+    "width": 1920,
+    "height": 1080,
+    "bitrate_kbps": 4000,
+}
+
+DEVICE = {
+    "host": "10.0.5.17",
+    "methods": ["onvif_unicast", "rtsp_scan"],
+    "onvif_xaddr": "http://10.0.5.17:80/onvif/device_service",
+    "rtsp_port": 554,
+    "manufacturer": "HIKVISION",
+    "model": "DS-2CD2143G2-I",
+    "firmware": "V5.7.3",
+    "serial": "DS-2CD2143G2-I20230101AAWRL12345678",
+    "name": "Линия 3",
+    "auth": "ok",
+    "channels": 1,
+    "candidates": [
+        {
+            "url": "rtsp://10.0.5.17:554/Streaming/Channels/101",
+            "source": "onvif_profile",
+            "profile": "mainStream",
+            "width": 1920,
+            "height": 1080,
+            "channel": 1,
+        },
+        {
+            "url": "rtsp://10.0.5.17:554/Streaming/Channels/102",
+            "source": "onvif_profile",
+            "profile": "subStream",
+            "width": 640,
+            "height": 360,
+            "channel": 1,
+        },
+    ],
+    "errors": [],
+}
+
 EXAMPLES: dict[str, dict[str, Any]] = {
     "AlertDelivery": _delivery(),
     "ArbiterOutcome": {
@@ -100,6 +153,8 @@ EXAMPLES: dict[str, dict[str, Any]] = {
         "fps_processed": 8.0,
         "reconnects_total": 2,
         "decode_errors_total": 0,
+        "last_packet_at": T0,
+        "brightness": 118.4,
         "frozen": False,
         "black": False,
         "overexposed": False,
@@ -265,7 +320,10 @@ EXAMPLES: dict[str, dict[str, Any]] = {
         "component": "camera-health",
         "camera_id": "cam-07",
         "message": "Камера 7: расфокус, резкость упала на 65% от базовой — проверьте объектив",
+        "details": {"issues": ["blur"]},
         "raised_at": T0,
+        "acknowledged_at": T1,
+        "acknowledged_by": "site_admin:sergeev",
     },
     "SystemHealth": {
         "status": "yellow",
@@ -339,6 +397,69 @@ EXAMPLES: dict[str, dict[str, Any]] = {
         "status": "awaiting_confirmation",
     },
     "VLMVerdict": VERDICT,
+    "CameraRegistryEntry": {
+        "id": "cam-07",
+        "name": "Линия упаковки, вид сверху",
+        "enabled": True,
+        "main_path": "cam-07/main",
+        "sub_path": "cam-07/sub",
+        "expected_fps": 15.0,
+        "baseline": {
+            "sharpness": 412.5,
+            "brightness": 118.0,
+            "noise": 3.1,
+            "snapshot_key": "frames/cam-07/baseline.jpg",
+            "captured_at": T0,
+        },
+    },
+    "DiscoveredDevice": DEVICE,
+    "DiscoveryJob": {
+        "id": "77777777-8888-4999-8aaa-bbbbbbbbbbbb",
+        "status": "done",
+        "started_at": T0,
+        "finished_at": T1,
+        "subnets": ["10.0.5.0/24"],
+        "hosts_total": 254,
+        "hosts_scanned": 254,
+        "devices": [DEVICE],
+        "warnings": [],
+    },
+    "ProbeReport": {
+        "host": "10.0.5.17",
+        "channel": 1,
+        "main": MAIN_PROBE,
+        "sub": SUB_PROBE,
+        "tried": [
+            {"url": MAIN_PROBE["url"], "ok": True, "probe": MAIN_PROBE},
+            {
+                "url": "rtsp://10.0.5.17:554/Streaming/Channels/103",
+                "ok": False,
+                "error": "по этому адресу потока нет (404)",
+            },
+        ],
+        "warnings": [],
+        "probed_at": T0,
+    },
+    "DoctorReport": {
+        "generated_at": T0,
+        "hostname": "qoima-server",
+        "version": "0.1.0",
+        "outcomes": [
+            {
+                "name": "Драйвер NVIDIA",
+                "level": "ok",
+                "detail": "580.95.05, GPU: 1",
+                "recommendation": "",
+            },
+            {
+                "name": "Время",
+                "level": "ok",
+                "detail": "chrony: смещение 0.4 мс",
+                "recommendation": "",
+            },
+        ],
+        "gpus": [{"index": 0, "name": "NVIDIA L40S", "driver": "580.95.05", "vram_mb": 46068}],
+    },
     "Zone": {
         "id": "zone-press-1",
         "camera_id": "cam-07",

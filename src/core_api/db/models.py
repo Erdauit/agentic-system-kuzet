@@ -20,6 +20,7 @@ from sqlalchemy import (
     Float,
     ForeignKey,
     Index,
+    Integer,
     MetaData,
     String,
     Text,
@@ -42,6 +43,8 @@ from shared.schemas import (
     Role,
     RoutingDecision,
     Severity,
+    SystemAlertKind,
+    SystemAlertSeverity,
     TaskType,
     ToolCallStatus,
     ZoneKind,
@@ -89,8 +92,30 @@ class User(Base):
     role: Mapped[str] = mapped_column(String(32))
     is_active: Mapped[bool] = mapped_column(Boolean, server_default=text("true"))
     created_at: Mapped[datetime] = _tz_now()
+    # scrypt-хеш (core_api.auth.passwords). NULL — вход по паролю невозможен.
+    password_hash: Mapped[str | None] = mapped_column(Text)
+    must_change_password: Mapped[bool] = mapped_column(Boolean, server_default=text("false"))
+    failed_logins: Mapped[int] = mapped_column(Integer, server_default=text("0"))
+    locked_until: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    last_login_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
     __table_args__ = (enum_check("role", Role),)
+
+
+class Session(Base):
+    """Серверная сессия. В БД хранится только sha256 токена: утечка таблицы не даёт входа."""
+
+    __tablename__ = "sessions"
+
+    token_hash: Mapped[str] = mapped_column(String(64), primary_key=True)
+    user_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"))
+    created_at: Mapped[datetime] = _tz_now()
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    last_seen_at: Mapped[datetime] = _tz_now()
+    ip: Mapped[str | None] = mapped_column(String(64))
+    user_agent: Mapped[str | None] = mapped_column(String(300))
+
+    __table_args__ = (Index(None, "user_id"), Index(None, "expires_at"))
 
 
 class AuditLog(Base):
@@ -145,10 +170,48 @@ class Camera(Base):
     probes: Mapped[list[Any] | None] = mapped_column(JSONB)
     baseline: Mapped[dict[str, Any] | None] = mapped_column(JSONB)
     calibration: Mapped[dict[str, Any] | None] = mapped_column(JSONB)
+    vendor: Mapped[str | None] = mapped_column(String(60))
+    model: Mapped[str | None] = mapped_column(String(120))
+    onvif_xaddr: Mapped[str | None] = mapped_column(Text)
     created_at: Mapped[datetime] = _tz_now()
     updated_at: Mapped[datetime] = _tz_now()
 
     __table_args__ = (enum_check("source", CameraSource),)
+
+
+class SystemAlert(Base):
+    """Системные алерты (здоровье камер и компонентов). Отдельно от инцидентов безопасности."""
+
+    __tablename__ = "system_alerts"
+
+    id: Mapped[uuid.UUID] = mapped_column(primary_key=True)
+    kind: Mapped[str] = mapped_column(String(32))
+    severity: Mapped[str] = mapped_column(String(16))
+    component: Mapped[str] = mapped_column(String(80))
+    camera_id: Mapped[str | None] = mapped_column(ForeignKey("cameras.id", ondelete="CASCADE"))
+    dedup_key: Mapped[str] = mapped_column(String(200))
+    message: Mapped[str] = mapped_column(Text)
+    details: Mapped[dict[str, Any]] = mapped_column(server_default=JSONB_EMPTY_OBJECT)
+    raised_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    acknowledged_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    acknowledged_by: Mapped[str | None] = mapped_column(String(120))
+    cleared_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+    __table_args__ = (
+        enum_check("kind", SystemAlertKind),
+        enum_check("severity", SystemAlertSeverity),
+        CheckConstraint(
+            "(acknowledged_at IS NULL) = (acknowledged_by IS NULL)", name="ack_fields_together"
+        ),
+        # Одновременно активен не больше одного алерта с тем же ключом (вид:компонент:камера).
+        Index(
+            "uq_system_alerts_active",
+            "dedup_key",
+            unique=True,
+            postgresql_where=text("cleared_at IS NULL"),
+        ),
+        Index(None, "raised_at"),
+    )
 
 
 class Zone(Base):

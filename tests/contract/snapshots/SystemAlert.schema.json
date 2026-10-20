@@ -1,5 +1,6 @@
 {
   "$defs": {
+    "JsonValue": {},
     "SystemAlertKind": {
       "enum": [
         "camera_down",
@@ -29,6 +30,31 @@
   },
   "additionalProperties": false,
   "properties": {
+    "acknowledged_at": {
+      "anyOf": [
+        {
+          "format": "date-time",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Acknowledged At"
+    },
+    "acknowledged_by": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Acknowledged By"
+    },
     "camera_id": {
       "anyOf": [
         {
@@ -60,6 +86,13 @@
       "minLength": 1,
       "title": "Component",
       "type": "string"
+    },
+    "details": {
+      "additionalProperties": {
+        "$ref": "#/$defs/JsonValue"
+      },
+      "title": "Details",
+      "type": "object"
     },
     "id": {
       "format": "uuid",

@@ -1,0 +1,34 @@
+# RTSP-сервер симулятора камеры: схема путей как у Hikvision (101 — основной поток, 102 — второй).
+# Поток запускается по требованию скриптом source.sh, который учитывает текущую неисправность.
+logLevel: warn
+logDestinations: [stdout]
+authMethod: internal
+authInternalUsers:
+  - user: "@SIM_USER@"
+    pass: "@SIM_PASSWORD@"
+    ips: []
+    permissions:
+      - action: read
+  - user: any
+    pass:
+    ips: ["127.0.0.1", "::1"]
+    permissions:
+      - action: publish
+api: false
+metrics: false
+rtsp: true
+rtspAddress: :554
+rtspTransports: [tcp]
+rtmp: false
+hls: false
+webrtc: false
+srt: false
+moq: false
+playback: false
+pprof: false
+paths:
+  "~^Streaming/Channels/10[12]$":
+    runOnDemand: /sim/source.sh $MTX_PATH
+    runOnDemandRestart: true
+    runOnDemandStartTimeout: 10s
+    runOnDemandCloseAfter: 10s

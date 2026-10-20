@@ -52,7 +52,7 @@ def test_upgrade_matches_models_and_downgrade_works(database_url: str) -> None:
 
     command.downgrade(cfg, "base")
     command.upgrade(cfg, "head")
-    assert head_revision() == "0001"
+    assert head_revision() == "0002"
 
 
 def test_database_enforces_invariants(database_url: str) -> None:

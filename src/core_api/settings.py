@@ -46,6 +46,16 @@ class Settings:
     mediamtx_api_url: str | None = None
     triton_url: str | None = None
     service_urls: dict[str, str] = field(default_factory=dict)
+    prometheus_url: str | None = None
+    mediamtx_rtsp_url: str = "rtsp://mediamtx:8554"
+    mediamtx_webrtc_url: str | None = None
+    data_root: Path | None = None  # None — storage.data_root из конфига
+    runtime_secrets_dir: Path = Path("/run/qoima-runtime-secrets")
+    site_config: Path | None = None
+    # Подсети сетевых интерфейсов сервера (их определяет `qoima up`) — для автопоиска камер.
+    host_subnets: list[str] = field(default_factory=list)
+    metrics_port: int | None = None  # отдельный внутренний порт /metrics (не публикуется наружу)
+    background_tasks: bool = True
 
     @classmethod
     def from_env(cls, env: Mapping[str, str] | None = None) -> Settings:
@@ -69,4 +79,18 @@ class Settings:
             mediamtx_api_url=_optional(e, "QOIMA_MEDIAMTX_API_URL"),
             triton_url=_optional(e, "QOIMA_TRITON_URL"),
             service_urls=_parse_service_urls(_optional(e, "QOIMA_SERVICE_URLS")),
+            prometheus_url=_optional(e, "QOIMA_PROMETHEUS_URL"),
+            mediamtx_rtsp_url=e.get("QOIMA_MEDIAMTX_RTSP_URL", cls.mediamtx_rtsp_url),
+            mediamtx_webrtc_url=_optional(e, "QOIMA_MEDIAMTX_WEBRTC_URL"),
+            data_root=Path(v) if (v := _optional(e, "QOIMA_DATA_DIR")) else None,
+            runtime_secrets_dir=Path(
+                e.get("QOIMA_RUNTIME_SECRETS_DIR", str(cls.runtime_secrets_dir))
+            ),
+            site_config=Path(v) if (v := _optional(e, "QOIMA_SITE_CONFIG")) else None,
+            host_subnets=[
+                x.strip()
+                for x in (_optional(e, "QOIMA_HOST_SUBNETS") or "").split(",")
+                if x.strip()
+            ],
+            metrics_port=int(v) if (v := _optional(e, "QOIMA_METRICS_PORT")) else None,
         )

@@ -11,7 +11,7 @@ from enum import StrEnum
 from typing import Self
 from uuid import UUID
 
-from pydantic import AwareDatetime, Field, model_validator
+from pydantic import AwareDatetime, Field, JsonValue, model_validator
 
 from shared.schemas.common import Contract, Identifier
 
@@ -114,7 +114,10 @@ class SystemAlert(Contract):
     component: str = Field(min_length=1, max_length=80)
     camera_id: Identifier | None = None
     message: str = Field(min_length=1, max_length=1000, description="Понятный текст для инженера")
+    details: dict[str, JsonValue] = Field(default_factory=dict)
     raised_at: AwareDatetime
+    acknowledged_at: AwareDatetime | None = None
+    acknowledged_by: str | None = None
     cleared_at: AwareDatetime | None = None
 
     @model_validator(mode="after")
@@ -123,4 +126,19 @@ class SystemAlert(Contract):
             raise ValueError("алерт по камере должен содержать camera_id")
         if self.cleared_at is not None and self.cleared_at < self.raised_at:
             raise ValueError("cleared_at раньше raised_at")
+        if (self.acknowledged_at is None) != (self.acknowledged_by is None):
+            raise ValueError("acknowledged_at и acknowledged_by задаются вместе")
         return self
+
+    @property
+    def active(self) -> bool:
+        return self.cleared_at is None
+
+    @property
+    def dedup_key(self) -> str:
+        """Одновременно активен не больше одного алерта с таким ключом."""
+        return system_alert_key(self.kind, self.component, self.camera_id)
+
+
+def system_alert_key(kind: SystemAlertKind, component: str, camera_id: str | None) -> str:
+    return f"{kind.value}:{component}:{camera_id or ''}"

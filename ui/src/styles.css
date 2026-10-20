@@ -99,3 +99,36 @@ h1 { margin-top: 0; font-size: 22px; }
   .content { padding: 16px; }
   .components { grid-template-columns: 1fr; }
 }
+
+/* ---- Фаза 1: формы, таблицы, камеры */
+h2 { font-size: 17px; margin: 24px 0 8px; }
+.card { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 16px; margin: 12px 0; }
+.card.narrow { max-width: 420px; }
+label { display: block; margin: 8px 0; font-size: 14px; }
+label.inline { display: flex; gap: 8px; align-items: center; }
+input, select, textarea { display: block; width: 100%; margin-top: 4px; padding: 6px 8px; border: 1px solid var(--border);
+  border-radius: 6px; background: var(--bg); color: var(--text); font: inherit; }
+input[type="checkbox"] { display: inline; width: auto; margin: 0; }
+button { padding: 6px 14px; border-radius: 6px; border: 1px solid var(--accent); background: var(--accent); color: #fff;
+  cursor: pointer; font: inherit; margin-top: 8px; }
+button:disabled { opacity: 0.5; cursor: not-allowed; }
+button.link { background: transparent; color: var(--accent); border: none; padding: 0 4px; margin: 0; }
+.row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.row input { flex: 1 1 160px; }
+fieldset { border: 1px solid var(--border); border-radius: 6px; margin: 12px 0; }
+.tabs { display: flex; gap: 4px; flex-wrap: wrap; }
+.tabs button { background: transparent; color: var(--text); border-color: var(--border); }
+.tabs button[aria-selected="true"] { background: var(--accent); color: #fff; border-color: var(--accent); }
+.table { width: 100%; border-collapse: collapse; font-size: 14px; }
+.table td { border-bottom: 1px solid var(--border); padding: 6px; vertical-align: top; }
+.lvl-fail td { color: var(--red); }
+.lvl-warn td { color: var(--yellow); }
+.ok { color: var(--green); }
+.bad { color: var(--red); }
+.snapshot { width: 100%; aspect-ratio: 16 / 9; object-fit: cover; border-radius: 4px; margin-top: 8px; background: var(--border); }
+.live video { width: 100%; aspect-ratio: 16 / 9; background: #000; border-radius: 4px; margin-top: 8px; }
+.sparkline path { stroke: var(--accent); }
+.alerts { list-style: none; padding: 0; }
+.alert-item { border-left: 4px solid var(--yellow); padding: 6px 10px; margin: 6px 0; background: var(--surface); }
+.alert-item.sev-critical { border-left-color: var(--red); }
+details summary { cursor: pointer; font-weight: 600; }
