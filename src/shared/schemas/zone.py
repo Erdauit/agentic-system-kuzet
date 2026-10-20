@@ -56,6 +56,11 @@ class Zone(Contract):
         default=None, gt=0, description="Только для red_zone; None — значение из сценария"
     )
     work_schedule: list[WorkWindow] = Field(default_factory=list)
+    area: Identifier | None = Field(
+        default=None,
+        description="Участок: одно место, которое видят несколько камер. События одного типа на одном "
+        "участке объединяются в один инцидент (SPEC.md §7)",
+    )
 
     @model_validator(mode="after")
     def _dwell_only_for_red_zone(self) -> Self:

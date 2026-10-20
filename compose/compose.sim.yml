@@ -15,8 +15,26 @@ services:
       SIM_USER: admin
       SIM_PASSWORD: qoima-sim
       SIM_FPS: "15"
+    volumes:
+      # Тестовые ролики (`qoima sim play <N> e2e/fall_staged.mp4`) — только чтение.
+      - ../samples:/samples:ro
     healthcheck:
       test: ["CMD", "python3", "-c", "import socket; socket.create_connection(('127.0.0.1', 554), 2)"]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+
+  # Приёмник алертов (подмена Telegram Bot API и HTTP-реле) для разработки и e2e.
+  # В мастере (шаг 7): адрес Telegram API http://alert-sink:8080, реле http://alert-sink:8080/relay.
+  alert-sink:
+    image: qoima/camera-sim:${QOIMA_VERSION:-dev}
+    restart: unless-stopped
+    networks: [edge]
+    entrypoint: ["python3", "/sim/alert_sink.py"]
+    ports:
+      - "127.0.0.1:18080:8080"
+    healthcheck:
+      test: ["CMD", "python3", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8080/healthz', timeout=2)"]
       interval: 10s
       timeout: 5s
       retries: 6

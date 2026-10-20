@@ -25,12 +25,15 @@ class Broadcaster:
     def unsubscribe(self, q: asyncio.Queue[dict[str, Any]]) -> None:
         self._queues.discard(q)
 
-    def publish(self, message: dict[str, Any]) -> None:
-        for q in list(self._queues):
+    def publish(self, message: dict[str, Any]) -> int:
+        """Разослать сообщение. Возвращает число подключённых окон UI, которым оно ушло."""
+        queues = list(self._queues)
+        for q in queues:
             if q.full():
                 with contextlib.suppress(asyncio.QueueEmpty):
                     q.get_nowait()
             q.put_nowait(message)
+        return len(queues)
 
     @property
     def subscribers(self) -> int:

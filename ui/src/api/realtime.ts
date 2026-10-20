@@ -2,7 +2,10 @@
 
 export type RealtimeMessage = { type: string; [key: string]: unknown };
 
-export function connectRealtime(onMessage: (m: RealtimeMessage) => void): () => void {
+export function connectRealtime(
+  onMessage: (m: RealtimeMessage) => void,
+  onStatus?: (connected: boolean) => void,
+): () => void {
   let socket: WebSocket | null = null;
   let closed = false;
   let timer: number | undefined;
@@ -17,7 +20,9 @@ export function connectRealtime(onMessage: (m: RealtimeMessage) => void): () => 
         // повреждённое сообщение игнорируем
       }
     };
+    socket.onopen = () => onStatus?.(true);
     socket.onclose = () => {
+      onStatus?.(false);
       if (!closed) timer = window.setTimeout(open, 3000);
     };
   };

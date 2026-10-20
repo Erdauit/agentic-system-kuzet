@@ -11,7 +11,10 @@ from sqlalchemy import CheckConstraint
 from core_api.db.models import Base
 from shared.schemas import (
     SAFETY_EVENT_TYPES,
+    AlertStream,
     CameraSource,
+    ChannelKind,
+    DeliveryStatus,
     EventType,
     FeedbackVerdict,
     IncidentState,
@@ -22,6 +25,7 @@ from shared.schemas import (
     Role,
     RoutingDecision,
     Severity,
+    SyntheticKind,
     SystemAlertKind,
     SystemAlertSeverity,
     TaskType,
@@ -47,6 +51,11 @@ EXPECTED: dict[tuple[str, str], set[str]] = {
     ("models", "status"): {e.value for e in ModelStatus},
     ("system_alerts", "kind"): {e.value for e in SystemAlertKind},
     ("system_alerts", "severity"): {e.value for e in SystemAlertSeverity},
+    ("events", "synthetic"): {e.value for e in SyntheticKind},
+    ("incidents", "synthetic"): {e.value for e in SyntheticKind},
+    ("alert_deliveries", "stream"): {e.value for e in AlertStream},
+    ("alert_deliveries", "channel"): {e.value for e in ChannelKind},
+    ("alert_deliveries", "status"): {e.value for e in DeliveryStatus},
 }
 
 

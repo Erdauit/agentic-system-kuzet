@@ -115,16 +115,47 @@ class MotionConfig(Section):
     pixel_delta: Annotated[int, Field(gt=0, le=255)]
     changed_ratio: Ratio
     idle_fps: PositiveFloat
+    active_hold_s: PositiveFloat
 
 
 class BatchingConfig(Section):
     max_queue_delay_ms: Annotated[float, Field(gt=0, le=20)]  # SPEC.md §5.6: ≤ 20 мс
 
 
+class InferenceConfig(Section):
+    runtime: Literal["onnxruntime", "tensorrt"]
+    models_dir: Path
+    person_model: str = Field(min_length=1)
+    pose_model: str | None
+    person_score_min: Ratio
+    pose_keypoint_min: Ratio
+    max_batch: Annotated[int, Field(ge=1, le=64)]
+    threads: Annotated[int, Field(ge=1, le=64)]
+    timeout_s: PositiveFloat
+
+
+class TrackerConfig(Section):
+    high_score: Ratio
+    low_score: Ratio
+    match_iou: Ratio
+    low_match_iou: Ratio
+    max_lost_s: PositiveFloat
+    min_hits: Annotated[int, Field(ge=1, le=20)]
+
+    @model_validator(mode="after")
+    def _scores(self) -> Self:
+        if self.low_score >= self.high_score:
+            raise ValueError("low_score должен быть меньше high_score")
+        return self
+
+
 class PipelineConfig(Section):
     backend: Literal["lite", "deepstream"]
     substream_max_height: Annotated[int, Field(gt=0, le=720)]  # SPEC.md §5.1: ≤ 720p
     gop_buffer_seconds: PositiveFloat
+    gop_max_mb_per_stream: PositiveFloat
+    inference: InferenceConfig
+    tracker: TrackerConfig
     motion: MotionConfig
     batching: BatchingConfig
     deepstream_recommend_from_cameras: PositiveInt
@@ -160,6 +191,8 @@ class IncidentsConfig(Section):
 class CanaryConfig(Section):
     interval_minutes: PositiveFloat
     clip: Path
+    alert_path_enabled: bool
+    timeout_s: PositiveFloat
 
 
 class HealthConfig(Section):
@@ -279,6 +312,12 @@ class _ScenarioBase(Section):
 class FallScenario(_ScenarioBase):
     scenario: Literal[ScenarioKind.FALL]
     lying_seconds: PositiveFloat
+    torso_lying_deg: Annotated[float, Field(gt=0, lt=90)]
+    bbox_lying_aspect: PositiveFloat
+    drop_ratio: Ratio
+    drop_window_s: PositiveFloat
+    still_ratio: Ratio
+    recover_seconds: PositiveFloat
     fps_range: ClassVar[tuple[float, float]] = (5.0, 10.0)
 
 
@@ -291,8 +330,10 @@ class RedZoneScenario(_ScenarioBase):
 
 class SmokeFireScenario(_ScenarioBase):
     scenario: Literal[ScenarioKind.SMOKE_FIRE]
+    model: str = Field(min_length=1)
     window_seconds: PositiveFloat
     min_area_growth_ratio: Ratio
+    min_candidate_frames: Annotated[int, Field(ge=1, le=100)]
     respect_work_schedule: bool
     fps_range: ClassVar[tuple[float, float]] = (2.0, 4.0)
 
@@ -344,6 +385,7 @@ class TelegramChannel(Section):
     enabled: bool
     bot_token_secret: Identifier
     timeout_s: PositiveFloat
+    api_base: str = Field(pattern=r"^https?://")
 
 
 class RelayHttp(Section):
@@ -401,6 +443,7 @@ class DeliveryConfig(Section):
     max_attempts: PositiveInt
     initial_backoff_s: PositiveFloat
     max_backoff_s: PositiveFloat
+    poll_interval_s: PositiveFloat
 
 
 class RecipientGroup(Section):

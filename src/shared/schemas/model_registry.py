@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from enum import StrEnum
-from typing import Self
+from typing import Literal, Self
 from uuid import UUID
 
 from pydantic import AwareDatetime, Field, model_validator
@@ -36,6 +36,34 @@ class ModelSource(StrEnum):
     TRAINED = "trained"  # обучены на объекте AutoML-графом
 
 
+class ModelRuntime(Contract):
+    """Как запускать артефакт модели (ONNX): вход, нормализация, разбор выходов.
+
+    Значения берутся из документации/исходников модели при подготовке артефакта
+    (tools/models/), а не подбираются на глаз (SPEC.md §13.3).
+    """
+
+    format: Literal["onnx"]
+    input_name: str = Field(min_length=1)
+    input_width: int = Field(gt=0, le=4096)
+    input_height: int = Field(gt=0, le=4096)
+    color: Literal["rgb", "bgr"]
+    mean: tuple[float, float, float] = Field(description="Вычитается после перевода в шкалу scale")
+    std: tuple[float, float, float]
+    scale: float = Field(gt=0, description="Делитель пикселей перед нормализацией: 255 или 1")
+    outputs: list[str] = Field(min_length=1)
+    dynamic_batch: bool
+    decoder: Literal["rfdetr", "rtmpose_simcc", "detector_generic"]
+    class_ids: dict[str, int] = Field(
+        default_factory=dict, description="Имя класса → индекс выхода"
+    )
+    keypoints: int | None = Field(default=None, gt=0, le=256)
+    simcc_split_ratio: float | None = Field(default=None, gt=0)
+    crop_padding: float | None = Field(
+        default=None, gt=1.0, le=2.0, description="Расширение бокса для top-down позы"
+    )
+
+
 class ModelManifest(Contract):
     name: Identifier
     version: str = Field(pattern=r"^\d+\.\d+\.\d+([-+][0-9A-Za-z.\-]+)?$")
@@ -50,6 +78,7 @@ class ModelManifest(Contract):
     status: ModelStatus
     created_at: AwareDatetime
     promoted_by: str | None = None
+    runtime: ModelRuntime | None = None
 
     @model_validator(mode="after")
     def _human_in_the_loop(self) -> Self:

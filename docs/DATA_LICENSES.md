@@ -25,6 +25,7 @@ CI проверяет актуальное состояние на каждом 
 | FFmpeg 9.0.2 (своя сборка) | media-base → core-api, vision-pipeline, camera-sim | LGPL-2.1-or-later, без GPL/nonfree (проверяется при сборке) | нужно подтверждение юриста (LGPL, динамическая линковка) |
 | libopenh264 | media-base | BSD-2-Clause | кодировщик нужен только симулятору |
 | PyAV из PyPI (колесо) | **не используется в образах** | заявлено LGPL, но содержит libx264/libx265 (GPL) | в образах PyAV собирается из исходников |
+| onnxruntime 1.31 (колесо, MIT) | vision-pipeline | MIT; внутри статически — protobuf (BSD-3), abseil (Apache-2.0), Eigen (MPL-2.0, заголовочная), flatbuffers (Apache-2.0) и др. по ThirdPartyNotices | нужно подтверждение юриста (MPL-2.0 Eigen, файловый copyleft без модификаций) |
 | opencv-python-headless 4.14 | vision-pipeline | Apache-2.0; внутри FFmpeg (LGPL-2.1), OpenSSL 1.1.1, libgfortran (GPL-3.0 WITH GCC-exception-3.1), OpenBLAS (BSD-3), libpng, libvpx/libaom/dav1d (BSD) | нужно подтверждение юриста; OpenSSL 1.1.1 снят с поддержки — заменить при обновлении |
 
 
@@ -47,9 +48,14 @@ CI проверяет актуальное состояние на каждом 
 
 ## Датасеты и веса моделей
 
-На Фазе 0 моделей и датасетов в репозитории нет. Лицензии весов (RF-DETR — Apache-2.0, COCO
-pretrained; поза — RF-DETR keypoints или RTMPose, Apache-2.0) и датасетов фиксируются здесь при
-добавлении в Фазах 2, 6 и 7. Лицензия весов указывается в манифесте модели (`ModelManifest.license`).
+| Модель | Веса | Данные обучения | Где | Статус |
+|---|---|---|---|---|
+| RF-DETR (детектор людей) | Apache-2.0 (Roboflow) | COCO 2017: аннотации CC BY 4.0, изображения — Flickr, условия Flickr ToU | готовит `tools/models/prepare_rfdetr.py`, в репозитории нет | веса не скачаны: нужен запуск инженером Qoima |
+| RTMPose-m body7 (поза) | Apache-2.0 (OpenMMLab) | Body7: COCO, MPII, CrowdPose, AI Challenger, Halpe, PoseTrack18, sub-JHMDB — у части датасетов некоммерческие условия | шаблон `models/registry/rtmpose-body.yaml`, артефакт в репозитории нет | **нужно ревью лицензий датасетов** до поставки; альтернатива — RF-DETR keypoints (выбор по бенчмарку) |
+| qoima-smoke-fire | веса Qoima | данные Qoima | нет | весов нет — сценарий «не развёрнут» |
+
+Лицензия весов указывается в манифесте (`ModelManifest.license`) и проверяется политикой при
+загрузке модели; sha256 артефакта сверяется с манифестом.
 
 ## Python (все пакеты окружения разработки)
 
@@ -64,6 +70,7 @@ pretrained; поза — RF-DETR keypoints или RTMPose, Apache-2.0) и дат
 | python | certifi | 2026.10.18 | MPL-2.0 | reviewed |
 | python | click | 8.5.0 | BSD-3-Clause | allowed |
 | python | fastapi | 0.147.0 | MIT | allowed |
+| python | flatbuffers | 25.12.19 | Apache-2.0 | allowed |
 | python | greenlet | 3.5.6 | MIT AND PSF-2.0 | reviewed |
 | python | h11 | 0.16.0 | MIT | allowed |
 | python | httpcore | 1.0.9 | BSD-3-Clause | allowed |
@@ -75,18 +82,23 @@ pretrained; поза — RF-DETR keypoints или RTMPose, Apache-2.0) и дат
 | python | markdown-it-py | 4.2.0 | MIT | allowed |
 | python | MarkupSafe | 3.0.4 | BSD-3-Clause | allowed |
 | python | mdurl | 0.1.2 | MIT | allowed |
+| python | ml_dtypes | 0.6.0 | Apache-2.0 | allowed |
 | python | mypy | 1.20.2 | MIT | allowed |
 | python | mypy_extensions | 1.1.0 | MIT | allowed |
 | python | numpy | 2.5.4 | BSD-3-Clause AND 0BSD AND MIT AND Zlib AND CC0-1.0 | reviewed |
+| python | onnx | 1.23.2 | Apache-2.0 | allowed |
+| python | onnxruntime | 1.31.0 | MIT | allowed |
 | python | opencv-python-headless | 4.14.0.94 | Apache-2.0 | allowed |
 | python | opentelemetry-api | 1.45.1 | Apache-2.0 | allowed |
 | python | packaging | 26.3 | Apache-2.0 OR BSD-2-Clause | allowed |
 | python | pathspec | 1.1.1 | MPL-2.0 | reviewed |
 | python | pluggy | 1.7.0 | MIT | allowed |
 | python | prometheus_client | 0.26.0 | Apache-2.0 AND BSD-2-Clause | allowed |
+| python | protobuf | 7.36.2 | BSD-3-Clause | allowed |
 | python | pydantic | 2.14.1 | MIT | allowed |
 | python | pydantic_core | 2.50.1 | MIT | allowed |
 | python | Pygments | 2.21.0 | BSD-2-Clause | allowed |
+| python | pymodbus | 3.16.1 | BSD-3-Clause | allowed |
 | python | pytest | 9.1.1 | MIT | allowed |
 | python | pytest-asyncio | 1.4.0 | Apache-2.0 | allowed |
 | python | PyYAML | 6.0.3 | MIT | allowed |

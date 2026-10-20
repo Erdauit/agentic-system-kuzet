@@ -116,6 +116,20 @@
   },
   "additionalProperties": false,
   "properties": {
+    "area": {
+      "anyOf": [
+        {
+          "pattern": "^[a-z0-9][a-z0-9_\\-]{0,63}$",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "Участок: одно место, которое видят несколько камер. События одного типа на одном участке объединяются в один инцидент (SPEC.md §7)",
+      "title": "Area"
+    },
     "camera_id": {
       "pattern": "^[a-z0-9][a-z0-9_\\-]{0,63}$",
       "title": "Camera Id",

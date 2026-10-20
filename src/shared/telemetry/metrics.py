@@ -124,6 +124,21 @@ _SPECS: tuple[MetricSpec, ...] = (
         "canary_e2e_seconds", "histogram", "Сквозная задержка канарейки", (), LATENCY_BUCKETS
     ),
     MetricSpec("canary_failures_total", "counter", "Провалы канарейки", ()),
+    # --- SLO (SPEC.md §6.1): сверх обязательного списка §6.2
+    MetricSpec(
+        "alert_latency_seconds",
+        "histogram",
+        "От срабатывания FSM до отправки первого алерта, по типу события",
+        ("type",),
+        LATENCY_BUCKETS,
+    ),
+    MetricSpec(
+        "camera_offline_detection_seconds",
+        "histogram",
+        "От последнего пакета камеры до системного алерта «нет потока» (SLO ≤ 15 с)",
+        (),
+        (1, 2, 5, 8, 10, 12, 15, 20, 30, 60),
+    ),
 )
 
 CATALOG: dict[str, MetricSpec] = {spec.name: spec for spec in _SPECS}

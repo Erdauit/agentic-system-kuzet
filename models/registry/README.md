@@ -1,9 +1,7 @@
 # Реестр моделей
 
-Здесь лежат манифесты моделей (`<name>-<version>.yaml`, контракт `shared.schemas.ModelManifest`):
-версия, лицензия весов (SPDX), метрики на golden set, sha256 весов, статус.
+Здесь — шаблоны манифестов (контракт `shared.schemas.ModelManifest` с разделом `runtime`).
+Артефакты (`model.onnx` + заполненный `manifest.yaml`) лежат вне git, в
+`/var/lib/qoima/models/registry/<имя>/`; как их получить — `tools/models/README.md`.
 
-Сами веса в git не хранятся. Веса Qoima (дым/огонь, СИЗ) кладутся в поставку отдельно
-(SPEC.md §5.12). Базовые модели (RF-DETR, поза) подключаются в Фазе 2.
-
-На Фазе 0 реестр пуст.
+Веса Qoima (дым/огонь, СИЗ) поставляются отдельно (SPEC.md §5.12).

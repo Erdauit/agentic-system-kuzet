@@ -9,6 +9,7 @@ from __future__ import annotations
 import json
 import os
 import platform
+import re
 import ssl
 import sys
 import urllib.error
@@ -407,12 +408,14 @@ def sim_up(
         "--scale",
         f"camera-sim={cameras}",
         "camera-sim",
+        "alert-sink",
     ]
     if _compose(plan, *args, timeout_s=900) != 0:
         _fail("симулятор не запустился")
     console.print(
         f"[green]Симулятор: {cameras} камер.[/] Логин/пароль: admin / qoima-sim. "
-        "Мастер → Камеры → «Найти камеры». Неисправность: qoima sim fault <N> freeze|blur|stop|…"
+        "Мастер → Камеры → «Найти камеры». Неисправность: qoima sim fault <N> freeze|blur|stop|…; "
+        "ролик: qoima sim play <N> e2e/fall_staged.mp4; приёмник алертов: http://alert-sink:8080"
     )
 
 
@@ -422,7 +425,7 @@ def sim_down(
 ) -> None:
     """Остановить симулятор камер."""
     plan = _sim_plan(no_gpu, engineering, config_dir)
-    code = _compose(plan, "rm", "--stop", "--force", "camera-sim")
+    code = _compose(plan, "rm", "--stop", "--force", "camera-sim", "alert-sink")
     raise typer.Exit(code)
 
 
@@ -444,6 +447,35 @@ def sim_fault(
     if not result.ok:
         _fail(f"не удалось изменить {container}: {result.stderr.strip()}")
     console.print(f"Камера-симулятор {camera}: {fault}")
+
+
+@sim_app.command("play")
+def sim_play(
+    camera: Annotated[int, typer.Argument(help="Номер симулированной камеры (1..N)")],
+    clip: Annotated[
+        str, typer.Argument(help="Ролик относительно samples/ (e2e/fall_staged.mp4) или testsrc")
+    ],
+) -> None:
+    """Показывать на симулированной камере ролик из samples/ по кругу (testsrc — таблица)."""
+    if clip != "testsrc":
+        rel = Path(clip)
+        # Путь уходит в `sh -c` внутри контейнера — только безопасные символы.
+        if rel.is_absolute() or ".." in rel.parts or not re.fullmatch(r"[A-Za-z0-9._/-]+", clip):
+            _fail("путь ролика — относительно samples/, латиница, цифры и ._/- без «..»")
+        if not (_home() / "samples" / rel).is_file():
+            _fail(
+                f"нет файла samples/{rel} — тестовые клипы предоставляет команда (samples/README.md)"
+            )
+        target = f"/samples/{rel.as_posix()}"
+    else:
+        target = "testsrc"
+    container = f"qoima-camera-sim-{camera}"
+    result = run_command(
+        ["docker", "exec", container, "sh", "-c", f"printf %s '{target}' > /run/sim/source"]
+    )
+    if not result.ok:
+        _fail(f"не удалось изменить {container}: {result.stderr.strip()}")
+    console.print(f"Камера-симулятор {camera}: {target}")
 
 
 @user_app.command("reset-password")

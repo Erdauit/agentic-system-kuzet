@@ -100,6 +100,8 @@ class SystemAlertKind(StrEnum):
     TIME_UNSYNCED = "time_unsynced"
     CANARY_FAILED = "canary_failed"
     VLM_DEGRADED = "vlm_degraded"
+    # Доставка алерта безопасности исчерпала повторы (канал недоступен) — инженерам.
+    ALERT_DELIVERY_FAILED = "alert_delivery_failed"
 
 
 class SystemAlertSeverity(StrEnum):

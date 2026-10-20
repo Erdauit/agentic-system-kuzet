@@ -1,4 +1,4 @@
-"""WebSocket /api/v1/ws: состояние камер, системные алерты, ход поиска камер.
+"""WebSocket /api/v1/ws: состояние камер, инциденты и алерты, системные алерты, ход поиска камер.
 
 Авторизация — та же cookie-сессия. Системные алерты получают только site_admin и
 qoima_engineer; остальным приходит лишь состояние камер.
@@ -16,7 +16,19 @@ from core_api.context import AppContext
 
 router = APIRouter()
 
-ADMIN_ONLY = {"system_alert", "discovery_progress", "discovery_done", "test_message"}
+ADMIN_ONLY = {
+    "system_alert",
+    "discovery_progress",
+    "discovery_done",
+    "test_message",
+    "canary_alert",
+}
+
+
+def _is_canary(message: dict[str, object]) -> bool:
+    """Инциденты канарейки видят только инженеры: она не должна беспокоить операторов."""
+    inc = message.get("incident")
+    return isinstance(inc, dict) and inc.get("synthetic") == "canary"
 
 
 @router.websocket("/api/v1/ws")
@@ -46,7 +58,7 @@ async def ws(websocket: WebSocket) -> None:
             except TimeoutError:
                 await websocket.send_json({"type": "ping"})
                 continue
-            if message.get("type") in ADMIN_ONLY and not is_admin:
+            if not is_admin and (message.get("type") in ADMIN_ONLY or _is_canary(message)):
                 continue
             await websocket.send_json(message)
     except (WebSocketDisconnect, RuntimeError):

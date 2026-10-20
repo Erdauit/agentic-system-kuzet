@@ -32,6 +32,17 @@ class RoutingDecision(StrEnum):
     EVENT_WITH_ARBITER = "event_with_arbiter"  # T_low <= P <= T_high: событие + запрос арбитру
 
 
+class SyntheticKind(StrEnum):
+    """Служебные события, которые проходят весь путь до каналов (SPEC.md §3.2 шаг 8, §6.1).
+
+    selftest — сквозной самотест из мастера: уходит во все каналы, человек подтверждает получение;
+    canary — периодическая канарейка: только в системный канал, операторов не беспокоит.
+    """
+
+    SELFTEST = "selftest"
+    CANARY = "canary"
+
+
 class FrameRef(Contract):
     """Ссылка на кадр в BlobStore (ключевой кадр, кадр-доказательство)."""
 
@@ -52,6 +63,10 @@ class Event(Contract):
     routing: RoutingDecision
     model_version: str = Field(min_length=1, max_length=120)
     evidence: list[FrameRef] = Field(default_factory=list, max_length=16)
+    area: Identifier | None = Field(
+        default=None, description="Участок зоны — ключ дедупликации между камерами"
+    )
+    synthetic: SyntheticKind | None = None
 
     @model_validator(mode="after")
     def _timestamps(self) -> Self:

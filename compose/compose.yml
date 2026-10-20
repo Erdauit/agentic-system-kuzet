@@ -188,7 +188,8 @@ services:
     secrets: [valkey_password]
     volumes:
       - ../configs:/etc/qoima/configs:ro
-      - ${QOIMA_DATA_ROOT}:/var/lib/qoima:ro
+      # Запись: клипы и кадры событий (clips/, frames/), кэш движков TensorRT (models/engines/).
+      - ${QOIMA_DATA_ROOT}:/var/lib/qoima
     depends_on:
       valkey: {condition: service_healthy}
       mediamtx: {condition: service_healthy}

@@ -1,0 +1,28 @@
+# Шаблон манифеста модели позы RTMPose-m (top-down, SimCC), артефакт — официальный ONNX OpenMMLab
+# rtmpose-m_simcc-body7_pt-body7_420e-256x192 (onnx_sdk). Параметры — из rtmlib 0.0.16 и конфигов
+# mmpose: вход 192×256, mean/std в шкале 0..255, расширение бокса 1.25, SimCC split ratio 2.0,
+# 17 точек COCO. Цвет RGB: mmpose обучает с bgr_to_rgb=True (rtmlib подаёт BGR — расхождение,
+# сверить на бенчмарке). sha256 и created_at заполняет tools/models/register_onnx.py.
+# Выбор RTMPose или RF-DETR keypoints — по бенчмарку на клипах объекта (docs/TODO.md).
+name: rtmpose-body
+version: "1.0.0"
+task_type: keypoints
+framework: rtmpose
+license: Apache-2.0
+source: pretrained
+status: candidate
+runtime:
+  format: onnx
+  input_name: input
+  input_width: 192
+  input_height: 256
+  color: rgb
+  mean: [123.675, 116.28, 103.53]
+  std: [58.395, 57.12, 57.375]
+  scale: 1.0
+  outputs: [simcc_x, simcc_y]
+  dynamic_batch: false
+  decoder: rtmpose_simcc
+  keypoints: 17
+  simcc_split_ratio: 2.0
+  crop_padding: 1.25

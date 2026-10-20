@@ -14,6 +14,7 @@ import time
 from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 import cv2
 import numpy as np
@@ -28,6 +29,9 @@ from shared.telemetry import create_metric, get_logger
 from vision_pipeline.health.assessor import BaselineRef, IssueDebouncer, build_health, observe
 from vision_pipeline.health.reader import CameraReader
 from vision_pipeline.health.view_shift import Reference, ViewShiftDetector
+
+if TYPE_CHECKING:
+    from vision_pipeline.hotpath.service import HotPath
 
 log = get_logger("camera-health")
 
@@ -70,8 +74,10 @@ class CameraHealthService:
         mediamtx_rtsp_url: str,
         data_root: Path,
         registry: CollectorRegistry,
+        hotpath: HotPath | None = None,
     ) -> None:
         self.valkey = valkey
+        self.hotpath = hotpath
         self.config = config
         self.reload_config = reload_config
         self.rtsp = mediamtx_rtsp_url.rstrip("/")
@@ -140,17 +146,24 @@ class CameraHealthService:
         for camera_id in list(self.workers):
             w = self.workers[camera_id]
             new = wanted.get(camera_id)
+            hp = self.hotpath
             if (
                 new is None
                 or new.sub_path != w.entry.sub_path
                 or new.main_path != w.entry.main_path
+                # Включили/выключили сценарии — читатель переподключается в другом режиме декодирования.
+                or (hp is not None and hp.wants_frames(new) != hp.wants_frames(w.entry))
             ):
                 w.reader.stop()
+                if hp is not None:
+                    hp.detach(camera_id)
                 del self.workers[camera_id]
                 log.info("camera_health_stopped", camera=camera_id)
             elif new != w.entry:
                 if new.baseline != w.entry.baseline:
                     w.baseline, w.reference["ref"] = self._load_baseline(new)
+                if hp is not None:
+                    hp.update(new)
                 w.entry = new
         for camera_id, entry in wanted.items():
             if camera_id in self.workers:
@@ -158,12 +171,15 @@ class CameraHealthService:
             path = entry.sub_path or entry.main_path
             baseline, reference = self._load_baseline(entry)
             holder: dict[str, Reference | None] = {"ref": reference}
+            gop, sink = self.hotpath.attach(entry) if self.hotpath else (None, None)
             reader = CameraReader(
                 camera_id,
                 f"{self.rtsp}/{path}",
                 cfg_getter,
                 _ref_getter(holder),
                 self.detector,
+                gop=gop,
+                frame_sink=sink,
             )
             cfg = self.config().defaults.camera_health
             self.workers[camera_id] = CameraWorker(

@@ -11,12 +11,15 @@ from sqlalchemy.ext.asyncio import AsyncEngine
 from valkey.asyncio import Valkey
 
 from core_api.alerts.channels import ChannelDispatcher
+from core_api.alerts.delivery import DeliveryService
 from core_api.alerts.system import SystemAlertManager
 from core_api.auth.service import AuthService
 from core_api.cameras.jobs import DiscoveryJobs
 from core_api.cameras.service import CameraService
+from core_api.incidents.manager import IncidentManager
 from core_api.metrics_query import PrometheusClient
 from core_api.realtime import Broadcaster
+from core_api.selftest import SelfTestService
 from core_api.settings import Settings
 from core_api.site_config import SiteConfigStore
 from shared.config import QoimaConfig
@@ -41,6 +44,9 @@ class AppContext:
     prometheus: PrometheusClient | None
     data_root: Path
     runtime_secrets: Path
+    delivery: DeliveryService
+    incidents: IncidentManager
+    selftest: SelfTestService
     camera_names: dict[str, str] = field(default_factory=dict)
 
     def get_config(self) -> QoimaConfig:

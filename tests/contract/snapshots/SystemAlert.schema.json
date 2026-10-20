@@ -14,7 +14,8 @@
         "disk_low",
         "time_unsynced",
         "canary_failed",
-        "vlm_degraded"
+        "vlm_degraded",
+        "alert_delivery_failed"
       ],
       "title": "SystemAlertKind",
       "type": "string"

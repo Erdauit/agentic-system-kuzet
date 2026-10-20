@@ -1,0 +1,76 @@
+{
+  "$defs": {
+    "EventType": {
+      "enum": [
+        "fall",
+        "red_zone",
+        "smoke_fire",
+        "fall_recovered"
+      ],
+      "title": "EventType",
+      "type": "string"
+    },
+    "SyntheticKind": {
+      "description": "Служебные события, которые проходят весь путь до каналов (SPEC.md §3.2 шаг 8, §6.1).\n\nselftest — сквозной самотест из мастера: уходит во все каналы, человек подтверждает получение;\ncanary — периодическая канарейка: только в системный канал, операторов не беспокоит.",
+      "enum": [
+        "selftest",
+        "canary"
+      ],
+      "title": "SyntheticKind",
+      "type": "string"
+    }
+  },
+  "additionalProperties": false,
+  "description": "Команда core-api → vision-pipeline (Valkey Streams). Сейчас одна: тестовое событие для\nсамотеста и канарейки — настоящий клип из GOP-буфера, настоящий путь до каналов.\n\nevent_id выбирает core-api: так он заранее знает, какое событие ждать, а повтор команды\nне создаёт второе событие.",
+  "properties": {
+    "camera_id": {
+      "pattern": "^[a-z0-9][a-z0-9_\\-]{0,63}$",
+      "title": "Camera Id",
+      "type": "string"
+    },
+    "event_id": {
+      "format": "uuid",
+      "title": "Event Id",
+      "type": "string"
+    },
+    "event_type": {
+      "$ref": "#/$defs/EventType"
+    },
+    "issued_at": {
+      "format": "date-time",
+      "title": "Issued At",
+      "type": "string"
+    },
+    "kind": {
+      "const": "inject_event",
+      "title": "Kind",
+      "type": "string"
+    },
+    "synthetic": {
+      "$ref": "#/$defs/SyntheticKind"
+    },
+    "zone_id": {
+      "anyOf": [
+        {
+          "pattern": "^[a-z0-9][a-z0-9_\\-]{0,63}$",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Zone Id"
+    }
+  },
+  "required": [
+    "event_id",
+    "kind",
+    "camera_id",
+    "event_type",
+    "synthetic",
+    "issued_at"
+  ],
+  "title": "PipelineCommand",
+  "type": "object"
+}

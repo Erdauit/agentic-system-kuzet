@@ -20,8 +20,8 @@ SPEC_METRICS = {
 }  # fmt: skip
 
 
-def test_catalog_matches_spec() -> None:
-    assert set(CATALOG) == SPEC_METRICS
+def test_catalog_covers_spec() -> None:
+    assert set(CATALOG) >= SPEC_METRICS
 
 
 @pytest.mark.parametrize("name", sorted(n for n, s in CATALOG.items() if s.source == "qoima"))

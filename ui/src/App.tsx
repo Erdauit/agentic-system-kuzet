@@ -5,6 +5,7 @@ import { isAdmin, type User } from "./api/types";
 import { initialLang, saveLang, translate, type Lang, type MessageKey } from "./i18n";
 import { HealthPage } from "./pages/Health/HealthPage";
 import { ChangePasswordPage, LoginPage } from "./pages/Login/LoginPage";
+import { OperationsPage } from "./pages/Operations/OperationsPage";
 import { SetupPage } from "./pages/Setup/SetupPage";
 
 interface Section {
@@ -17,7 +18,7 @@ interface Section {
 
 const SECTIONS: Section[] = [
   { id: "setup", title: "nav.setup", phase: null, adminOnly: true },
-  { id: "operations", title: "nav.operations", phase: 2 },
+  { id: "operations", title: "nav.operations", phase: null },
   { id: "health", title: "nav.health", phase: null },
   { id: "chat", title: "nav.chat", phase: 5 },
   { id: "models", title: "nav.models", phase: 7 },
@@ -28,7 +29,7 @@ const SECTIONS: Section[] = [
 
 function currentSection(): string {
   const id = window.location.hash.replace(/^#\/?/, "");
-  return SECTIONS.some((s) => s.id === id && s.phase === null) ? id : "health";
+  return SECTIONS.some((s) => s.id === id && s.phase === null) ? id : "operations";
 }
 
 export function App() {
@@ -65,6 +66,7 @@ export function App() {
   else if (user === null) content = <LoginPage t={t} onLogin={setUser} />;
   else if (user.must_change_password) content = <ChangePasswordPage t={t} onDone={setUser} />;
   else if (section === "setup" && isAdmin(user)) content = <SetupPage t={t} />;
+  else if (section === "operations") content = <OperationsPage t={t} />;
   else content = <HealthPage lang={lang} t={t} user={user} />;
 
   return (

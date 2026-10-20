@@ -89,10 +89,33 @@
       ],
       "title": "RoutingDecision",
       "type": "string"
+    },
+    "SyntheticKind": {
+      "description": "Служебные события, которые проходят весь путь до каналов (SPEC.md §3.2 шаг 8, §6.1).\n\nselftest — сквозной самотест из мастера: уходит во все каналы, человек подтверждает получение;\ncanary — периодическая канарейка: только в системный канал, операторов не беспокоит.",
+      "enum": [
+        "selftest",
+        "canary"
+      ],
+      "title": "SyntheticKind",
+      "type": "string"
     }
   },
   "additionalProperties": false,
   "properties": {
+    "area": {
+      "anyOf": [
+        {
+          "pattern": "^[a-z0-9][a-z0-9_\\-]{0,63}$",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "Участок зоны — ключ дедупликации между камерами",
+      "title": "Area"
+    },
     "camera_id": {
       "pattern": "^[a-z0-9][a-z0-9_\\-]{0,63}$",
       "title": "Camera Id",
@@ -138,6 +161,17 @@
       "format": "date-time",
       "title": "Started At",
       "type": "string"
+    },
+    "synthetic": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/SyntheticKind"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
     },
     "track_ids": {
       "items": {

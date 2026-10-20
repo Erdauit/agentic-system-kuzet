@@ -1,6 +1,6 @@
 [project]
 name = "qoima-vision-pipeline"
-version = "0.2.0"
+version = "0.3.0"
 description = "vision-pipeline: hot path (декодирование, инференс, трекинг, FSM, Camera Health)"
 requires-python = ">=3.12"
 license = "LicenseRef-Qoima-Proprietary"
@@ -10,6 +10,9 @@ dependencies = [
     "av>=19.0.1,<20",
     # Только imgproc/features2d (ORB для сдвига ракурса). Колесо headless: без Qt.
     "opencv-python-headless>=4.13,<5",
+    # Инференс ONNX: CPU для разработки и CI. На объекте — onnxruntime-gpu с TensorRT EP
+    # (FP16-движок строится на месте, SPEC.md §5.7) — образ GPU-профиля (docs/TODO.md).
+    "onnxruntime>=1.20,<2",
 ]
 
 [tool.uv.sources]

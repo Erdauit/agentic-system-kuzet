@@ -30,6 +30,7 @@ from shared.schemas.camera import (
     CameraIssue,
     CameraRegistryEntry,
     CameraSource,
+    PipelineCommand,
     QualityBaseline,
     StreamProbe,
     StreamRole,
@@ -63,7 +64,14 @@ from shared.schemas.discovery import (
     StreamCandidate,
 )
 from shared.schemas.doctor import DoctorGpu, DoctorLevel, DoctorOutcome, DoctorReport
-from shared.schemas.event import SAFETY_EVENT_TYPES, Event, EventType, FrameRef, RoutingDecision
+from shared.schemas.event import (
+    SAFETY_EVENT_TYPES,
+    Event,
+    EventType,
+    FrameRef,
+    RoutingDecision,
+    SyntheticKind,
+)
 from shared.schemas.feedback import Feedback, FeedbackVerdict, ReasonCode
 from shared.schemas.health import (
     ComponentHealth,
@@ -75,6 +83,7 @@ from shared.schemas.health import (
 from shared.schemas.incident import (
     ALLOWED_TRANSITIONS,
     ClipRef,
+    EventMedia,
     Incident,
     IncidentState,
     Severity,
@@ -83,6 +92,7 @@ from shared.schemas.incident import (
 from shared.schemas.model_registry import (
     MODEL_TRANSITIONS,
     ModelManifest,
+    ModelRuntime,
     ModelSource,
     ModelStatus,
 )
@@ -119,10 +129,12 @@ CONTRACTS: dict[str, type[Contract]] = {
         DiscoveryJob,
         DoctorReport,
         Event,
+        EventMedia,
         Feedback,
         FloorCalibration,
         Incident,
         ModelManifest,
+        PipelineCommand,
         ProbeReport,
         QualityBaseline,
         StreamProbe,
@@ -172,6 +184,7 @@ __all__ = [
     "DoctorOutcome",
     "DoctorReport",
     "Event",
+    "EventMedia",
     "EventType",
     "FailOpenReason",
     "Feasibility",
@@ -190,9 +203,11 @@ __all__ = [
     "KnownDistance",
     "Language",
     "ModelManifest",
+    "ModelRuntime",
     "ModelSource",
     "ModelStatus",
     "PermissionLevel",
+    "PipelineCommand",
     "Point",
     "Polygon",
     "PriorityChange",
@@ -207,6 +222,7 @@ __all__ = [
     "StreamProbe",
     "StreamRole",
     "SuccessCriterion",
+    "SyntheticKind",
     "SystemAlert",
     "SystemAlertKind",
     "SystemAlertSeverity",

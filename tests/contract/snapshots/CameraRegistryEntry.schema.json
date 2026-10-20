@@ -1,5 +1,148 @@
 {
   "$defs": {
+    "FloorCalibration": {
+      "additionalProperties": false,
+      "description": "Калибровка плоскости пола: 4 точки на полу → гомография (SPEC.md §3.2, шаг 5).\n\nhomography заполняет vision-pipeline (geometry) после расчёта; без калибровки пайплайн\nиспользует fallback-эвристику, а UI показывает пониженную точность.",
+      "properties": {
+        "calibrated_at": {
+          "format": "date-time",
+          "title": "Calibrated At",
+          "type": "string"
+        },
+        "camera_id": {
+          "pattern": "^[a-z0-9][a-z0-9_\\-]{0,63}$",
+          "title": "Camera Id",
+          "type": "string"
+        },
+        "homography": {
+          "anyOf": [
+            {
+              "items": {
+                "items": {
+                  "type": "number"
+                },
+                "type": "array"
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Homography"
+        },
+        "image_points": {
+          "items": {
+            "$ref": "#/$defs/Point"
+          },
+          "maxItems": 4,
+          "minItems": 4,
+          "title": "Image Points",
+          "type": "array"
+        },
+        "known_distance": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/KnownDistance"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "snapshot_key": {
+          "description": "Снапшот, на котором делалась калибровка",
+          "minLength": 1,
+          "title": "Snapshot Key",
+          "type": "string"
+        }
+      },
+      "required": [
+        "camera_id",
+        "image_points",
+        "snapshot_key",
+        "calibrated_at"
+      ],
+      "title": "FloorCalibration",
+      "type": "object"
+    },
+    "KnownDistance": {
+      "additionalProperties": false,
+      "description": "Известное расстояние между двумя точками калибровки — задаёт масштаб в метрах.",
+      "properties": {
+        "meters": {
+          "exclusiveMinimum": 0,
+          "maximum": 500,
+          "title": "Meters",
+          "type": "number"
+        },
+        "point_a": {
+          "maximum": 3,
+          "minimum": 0,
+          "title": "Point A",
+          "type": "integer"
+        },
+        "point_b": {
+          "maximum": 3,
+          "minimum": 0,
+          "title": "Point B",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "point_a",
+        "point_b",
+        "meters"
+      ],
+      "title": "KnownDistance",
+      "type": "object"
+    },
+    "Point": {
+      "additionalProperties": false,
+      "description": "Точка в нормализованных координатах кадра (0..1).\n\nНормализация делает зоны независимыми от разрешения: полигон, нарисованный на снапшоте\nmainstream, корректно применяется к substream.",
+      "properties": {
+        "x": {
+          "maximum": 1.0,
+          "minimum": 0.0,
+          "title": "X",
+          "type": "number"
+        },
+        "y": {
+          "maximum": 1.0,
+          "minimum": 0.0,
+          "title": "Y",
+          "type": "number"
+        }
+      },
+      "required": [
+        "x",
+        "y"
+      ],
+      "title": "Point",
+      "type": "object"
+    },
+    "Polygon": {
+      "additionalProperties": false,
+      "description": "Простой (без самопересечений) полигон в нормализованных координатах.",
+      "properties": {
+        "points": {
+          "items": {
+            "$ref": "#/$defs/Point"
+          },
+          "maxItems": 64,
+          "minItems": 3,
+          "title": "Points",
+          "type": "array"
+        }
+      },
+      "required": [
+        "points"
+      ],
+      "title": "Polygon",
+      "type": "object"
+    },
     "QualityBaseline": {
       "additionalProperties": false,
       "description": "Базовая линия качества кадра, снятая при подключении/калибровке камеры.",
@@ -44,6 +187,156 @@
       ],
       "title": "QualityBaseline",
       "type": "object"
+    },
+    "ScenarioKind": {
+      "description": "Сценарии детекции (SPEC.md §5.8). Имена совпадают с файлами configs/scenarios/*.yaml.",
+      "enum": [
+        "fall",
+        "red_zone",
+        "smoke_fire"
+      ],
+      "title": "ScenarioKind",
+      "type": "string"
+    },
+    "WorkActivity": {
+      "description": "Плановые работы, которые дают похожие на опасность картинки (SPEC.md §5.8, SmokeFireFSM).",
+      "enum": [
+        "welding",
+        "steaming",
+        "maintenance",
+        "other"
+      ],
+      "title": "WorkActivity",
+      "type": "string"
+    },
+    "WorkWindow": {
+      "additionalProperties": false,
+      "description": "Окно плановых работ. end < start означает переход через полночь (ночная смена).",
+      "properties": {
+        "activity": {
+          "$ref": "#/$defs/WorkActivity"
+        },
+        "end": {
+          "format": "time",
+          "title": "End",
+          "type": "string"
+        },
+        "note": {
+          "anyOf": [
+            {
+              "maxLength": 200,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Note"
+        },
+        "start": {
+          "format": "time",
+          "title": "Start",
+          "type": "string"
+        },
+        "weekdays": {
+          "description": "0 — понедельник",
+          "items": {
+            "type": "integer"
+          },
+          "maxItems": 7,
+          "minItems": 1,
+          "title": "Weekdays",
+          "type": "array"
+        }
+      },
+      "required": [
+        "activity",
+        "weekdays",
+        "start",
+        "end"
+      ],
+      "title": "WorkWindow",
+      "type": "object"
+    },
+    "Zone": {
+      "additionalProperties": false,
+      "properties": {
+        "area": {
+          "anyOf": [
+            {
+              "pattern": "^[a-z0-9][a-z0-9_\\-]{0,63}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Участок: одно место, которое видят несколько камер. События одного типа на одном участке объединяются в один инцидент (SPEC.md §7)",
+          "title": "Area"
+        },
+        "camera_id": {
+          "pattern": "^[a-z0-9][a-z0-9_\\-]{0,63}$",
+          "title": "Camera Id",
+          "type": "string"
+        },
+        "dwell_seconds": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Только для red_zone; None — значение из сценария",
+          "title": "Dwell Seconds"
+        },
+        "id": {
+          "pattern": "^[a-z0-9][a-z0-9_\\-]{0,63}$",
+          "title": "Id",
+          "type": "string"
+        },
+        "kind": {
+          "$ref": "#/$defs/ZoneKind"
+        },
+        "name": {
+          "maxLength": 120,
+          "minLength": 1,
+          "title": "Name",
+          "type": "string"
+        },
+        "polygon": {
+          "$ref": "#/$defs/Polygon"
+        },
+        "work_schedule": {
+          "items": {
+            "$ref": "#/$defs/WorkWindow"
+          },
+          "title": "Work Schedule",
+          "type": "array"
+        }
+      },
+      "required": [
+        "id",
+        "camera_id",
+        "name",
+        "kind",
+        "polygon"
+      ],
+      "title": "Zone",
+      "type": "object"
+    },
+    "ZoneKind": {
+      "enum": [
+        "red_zone",
+        "monitoring"
+      ],
+      "title": "ZoneKind",
+      "type": "string"
     }
   },
   "additionalProperties": false,
@@ -78,6 +371,17 @@
       "description": "FPS потока анализа по зондированию",
       "title": "Expected Fps"
     },
+    "floor": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/FloorCalibration"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
     "id": {
       "pattern": "^[a-z0-9][a-z0-9_\\-]{0,63}$",
       "title": "Id",
@@ -95,6 +399,13 @@
       "title": "Name",
       "type": "string"
     },
+    "scenarios": {
+      "items": {
+        "$ref": "#/$defs/ScenarioKind"
+      },
+      "title": "Scenarios",
+      "type": "array"
+    },
     "sub_path": {
       "anyOf": [
         {
@@ -107,6 +418,13 @@
       ],
       "default": null,
       "title": "Sub Path"
+    },
+    "zones": {
+      "items": {
+        "$ref": "#/$defs/Zone"
+      },
+      "title": "Zones",
+      "type": "array"
     }
   },
   "required": [

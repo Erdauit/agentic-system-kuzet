@@ -238,6 +238,29 @@ EXAMPLES: dict[str, dict[str, Any]] = {
         "routing": "event_with_arbiter",
         "model_version": "rf-detr-person-1.0.0+rtmpose-1.0.0",
         "evidence": [FRAME],
+        "area": "line-3",
+        "synthetic": None,
+    },
+    "EventMedia": {
+        "event_id": EVENT_ID,
+        "camera_id": "cam-07",
+        "clip": {
+            "blob_key": f"clips/cam-07/2026-10-19/{EVENT_ID}.mp4",
+            "starts_at": "2026-10-19T07:59:44+05:00",
+            "ends_at": "2026-10-19T08:00:25+05:00",
+            "codec": "h264",
+        },
+        "keyframes": [FRAME],
+        "error": None,
+    },
+    "PipelineCommand": {
+        "event_id": EVENT_ID,
+        "kind": "inject_event",
+        "camera_id": "cam-07",
+        "event_type": "fall",
+        "synthetic": "selftest",
+        "zone_id": "mon-line-3",
+        "issued_at": T0,
     },
     "Feedback": {
         "id": "33333333-4444-4555-8666-777777777777",
@@ -280,6 +303,8 @@ EXAMPLES: dict[str, dict[str, Any]] = {
         },
         "keyframes": [FRAME],
         "vlm_verdict": VERDICT,
+        "area": "line-3",
+        "escalation_level": 1,
     },
     "ModelManifest": {
         "name": "helmet-detector",
@@ -294,6 +319,20 @@ EXAMPLES: dict[str, dict[str, Any]] = {
         "metrics": {"f1_macro": 0.91, "ece": 0.04},
         "status": "shadow",
         "created_at": T0,
+        "runtime": {
+            "format": "onnx",
+            "input_name": "input",
+            "input_width": 512,
+            "input_height": 512,
+            "color": "rgb",
+            "mean": [0.485, 0.456, 0.406],
+            "std": [0.229, 0.224, 0.225],
+            "scale": 255.0,
+            "outputs": ["dets", "labels"],
+            "dynamic_batch": True,
+            "decoder": "rfdetr",
+            "class_ids": {"helmet": 1, "no_helmet": 2},
+        },
     },
     "QualityBaseline": {
         "sharpness": 412.5,
@@ -411,6 +450,26 @@ EXAMPLES: dict[str, dict[str, Any]] = {
             "snapshot_key": "frames/cam-07/baseline.jpg",
             "captured_at": T0,
         },
+        "scenarios": ["fall", "red_zone"],
+        "zones": [
+            {
+                "id": "press-1",
+                "camera_id": "cam-07",
+                "name": "Пресс 1",
+                "kind": "red_zone",
+                "polygon": {
+                    "points": [
+                        {"x": 0.4, "y": 0.6},
+                        {"x": 0.6, "y": 0.6},
+                        {"x": 0.6, "y": 0.9},
+                        {"x": 0.4, "y": 0.9},
+                    ]
+                },
+                "dwell_seconds": 0.5,
+                "area": "press-area",
+            }
+        ],
+        "floor": None,
     },
     "DiscoveredDevice": DEVICE,
     "DiscoveryJob": {
@@ -476,5 +535,6 @@ EXAMPLES: dict[str, dict[str, Any]] = {
                 "note": "ППР по субботам",
             }
         ],
+        "area": "press-area",
     },
 }

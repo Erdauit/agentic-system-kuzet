@@ -9,7 +9,7 @@ from fastapi import APIRouter, Depends, Request
 from core_api import __version__
 from core_api.auth.deps import CurrentUser
 from core_api.context import AppContext, get_ctx
-from core_api.metrics_query import SLO_OFFLINE_P95, QueryError
+from core_api.metrics_query import SLO_OFFLINE_P95, QueryError, slo_alert_p95
 from core_api.system_health import HealthDeps, collect
 from shared.schemas import SystemHealth
 
@@ -59,19 +59,45 @@ async def slo(
             "note": error or ("пока не было отключений камер" if offline is None else None),
         }
     ]
-    for name, title, target in (
-        ("fall_to_alert", "Падение → алерт (p95)", targets.fall_to_alert_p95_s),
-        ("red_zone_to_alert", "Красная зона → алерт (p95)", targets.red_zone_to_alert_p95_s),
-        ("smoke_fire_candidate", "Дым/огонь → алерт (p95)", targets.smoke_fire_candidate_p95_s),
+    detectors = {"fall": "fall", "red_zone": "red_zone", "smoke_fire": "smoke_fire"}
+    for name, event_type, title, target in (
+        ("fall_to_alert", "fall", "Падение → алерт (p95, 7 дней)", targets.fall_to_alert_p95_s),
+        (
+            "red_zone_to_alert",
+            "red_zone",
+            "Красная зона → алерт (p95, 7 дней)",
+            targets.red_zone_to_alert_p95_s,
+        ),
+        (
+            "smoke_fire_candidate",
+            "smoke_fire",
+            "Дым/огонь → алерт (p95, 7 дней)",
+            targets.smoke_fire_candidate_p95_s,
+        ),
     ):
+        value: float | None = None
+        note: str | None = None
+        if ctx.prometheus is not None:
+            try:
+                value = await ctx.prometheus.scalar(slo_alert_p95(detectors[event_type]))
+            except QueryError as exc:
+                note = str(exc)
+        if value is None and note is None:
+            note = (
+                "нет весов модели дыма/огня — сценарий не развёрнут"
+                if event_type == "smoke_fire"
+                else "пока не было алертов этого типа"
+            )
         rows.append(
             {
                 "name": name,
                 "title": title,
                 "target_s": target,
-                "value_s": None,
-                "status": "not_measured",
-                "note": "детекторы и алерты подключаются в Фазе 2",
+                "value_s": value,
+                "status": "not_measured"
+                if value is None
+                else ("ok" if value <= target else "violated"),
+                "note": note,
             }
         )
     return rows

@@ -59,6 +59,28 @@
 
 **Docker-образ.** Закреплённый тег + запись в `src/shared/licenses/components.yaml` с лицензией.
 
+## Hot path и алерты (Фаза 2)
+
+```
+камера → MediaMTX → vision-pipeline: substream (декодирование, Camera Health, движение →
+  инференс батчем → трекер → FSM) + mainstream (только пакеты) → GOP-буферы
+  → qoima:events (Event, кадр-доказательство) → core-api: инцидент (дедупликация по участку)
+  → alert_deliveries (веб / Telegram / реле / Modbus, повторы, эскалация)
+  → +clip_post_s: qoima:event_media (клип MP4, ключевые кадры) → карточка, клип в Telegram
+core-api → qoima:pipeline:commands (inject_event: самотест, канарейка) → vision-pipeline
+```
+
+- Модели: `tools/models/prepare_rfdetr.py` (RF-DETR → ONNX + манифест) и
+  `tools/models/register_onnx.py` (готовый ONNX по шаблону `models/registry/*.yaml`). Артефакт —
+  `<models_dir>/<имя>/{model.onnx,manifest.yaml}`; sha256 и лицензия проверяются при загрузке.
+- Ролики на симуляторе: `qoima sim play <N> e2e/fall_staged.mp4` (`testsrc` — вернуть таблицу).
+- Приёмник алертов для разработки: `alert-sink` (`qoima sim up`). В мастере, шаг 7: адрес
+  Telegram API `http://alert-sink:8080`, реле `http://alert-sink:8080/relay`; что пришло —
+  `curl http://127.0.0.1:18080/_records`, «Telegram недоступен» —
+  `curl -X POST 'http://127.0.0.1:18080/_telegram?down=1'`.
+- Сообщения потоков, которые 5 раз упали с ошибкой, лежат в `qoima:events:dead` /
+  `qoima:event_media:dead`.
+
 ## Тесты
 
 ```bash

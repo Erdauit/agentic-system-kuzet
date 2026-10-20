@@ -3,12 +3,15 @@
 from __future__ import annotations
 
 from enum import StrEnum
-from typing import Annotated, Self
+from typing import Annotated, Literal, Self
 from urllib.parse import urlsplit
+from uuid import UUID
 
 from pydantic import AfterValidator, AwareDatetime, Field, model_validator
 
 from shared.schemas.common import Contract, DisplayName, Identifier, ScenarioKind, UnitFloat
+from shared.schemas.event import EventType, SyntheticKind
+from shared.schemas.zone import FloorCalibration, Zone
 
 
 def _validate_rtsp_url(value: str) -> str:
@@ -171,6 +174,23 @@ class CameraHealth(Contract):
         return self
 
 
+class PipelineCommand(Contract):
+    """Команда core-api → vision-pipeline (Valkey Streams). Сейчас одна: тестовое событие для
+    самотеста и канарейки — настоящий клип из GOP-буфера, настоящий путь до каналов.
+
+    event_id выбирает core-api: так он заранее знает, какое событие ждать, а повтор команды
+    не создаёт второе событие.
+    """
+
+    event_id: UUID
+    kind: Literal["inject_event"]
+    camera_id: Identifier
+    event_type: EventType
+    synthetic: SyntheticKind
+    zone_id: Identifier | None = None
+    issued_at: AwareDatetime
+
+
 class CameraRegistryEntry(Contract):
     """Камера в реестре, который core-api публикует для vision-pipeline (без учётных данных).
 
@@ -187,3 +207,6 @@ class CameraRegistryEntry(Contract):
         default=None, gt=0, description="FPS потока анализа по зондированию"
     )
     baseline: QualityBaseline | None = None
+    scenarios: list[ScenarioKind] = Field(default_factory=list)
+    zones: list[Zone] = Field(default_factory=list)
+    floor: FloorCalibration | None = None

@@ -9,7 +9,7 @@ from uuid import UUID
 from pydantic import AwareDatetime, Field, model_validator
 
 from shared.schemas.common import Contract, Identifier
-from shared.schemas.event import SAFETY_EVENT_TYPES, EventType, FrameRef
+from shared.schemas.event import SAFETY_EVENT_TYPES, EventType, FrameRef, SyntheticKind
 from shared.schemas.vlm import ArbiterOutcome, VLMVerdict
 
 
@@ -72,6 +72,11 @@ class Incident(Contract):
     keyframes: list[FrameRef] = Field(default_factory=list, max_length=6)
     vlm_verdict: VLMVerdict | None = None
     arbiter_outcome: ArbiterOutcome | None = None
+    area: Identifier | None = None
+    synthetic: SyntheticKind | None = None
+    escalation_level: int = Field(
+        default=0, ge=0, le=10, description="Последний отправленный уровень эскалации"
+    )
 
     @model_validator(mode="after")
     def _lifecycle_consistent(self) -> Self:
@@ -95,4 +100,23 @@ class Incident(Contract):
             and self.resolved_at < self.acknowledged_at
         ):
             raise ValueError("resolved_at раньше acknowledged_at")
+        return self
+
+
+class EventMedia(Contract):
+    """Клип и ключевые кадры события — vision-pipeline публикует их после окончания окна клипа
+    (+clip_post_s после события)."""
+
+    event_id: UUID
+    camera_id: Identifier
+    clip: ClipRef | None = None
+    keyframes: list[FrameRef] = Field(default_factory=list, max_length=6)
+    error: str | None = Field(
+        default=None, max_length=500, description="Почему клипа нет (буфер пуст и т.п.)"
+    )
+
+    @model_validator(mode="after")
+    def _clip_or_error(self) -> Self:
+        if self.clip is None and not self.error:
+            raise ValueError("без клипа нужна причина (error)")
         return self

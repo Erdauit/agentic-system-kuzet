@@ -29,6 +29,7 @@ class StreamStats:
     reconnects_total: int = 0
     decode_errors_total: int = 0
     frames_analyzed_times: deque[float] = field(default_factory=lambda: deque(maxlen=256))
+    inferred_times: deque[float] = field(default_factory=lambda: deque(maxlen=256))
     view_shift_score: float | None = None
 
 

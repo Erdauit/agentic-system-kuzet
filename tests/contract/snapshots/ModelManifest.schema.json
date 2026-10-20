@@ -1,5 +1,168 @@
 {
   "$defs": {
+    "ModelRuntime": {
+      "additionalProperties": false,
+      "description": "Как запускать артефакт модели (ONNX): вход, нормализация, разбор выходов.\n\nЗначения берутся из документации/исходников модели при подготовке артефакта\n(tools/models/), а не подбираются на глаз (SPEC.md §13.3).",
+      "properties": {
+        "class_ids": {
+          "additionalProperties": {
+            "type": "integer"
+          },
+          "description": "Имя класса → индекс выхода",
+          "title": "Class Ids",
+          "type": "object"
+        },
+        "color": {
+          "enum": [
+            "rgb",
+            "bgr"
+          ],
+          "title": "Color",
+          "type": "string"
+        },
+        "crop_padding": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 1.0,
+              "maximum": 2.0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Расширение бокса для top-down позы",
+          "title": "Crop Padding"
+        },
+        "decoder": {
+          "enum": [
+            "rfdetr",
+            "rtmpose_simcc",
+            "detector_generic"
+          ],
+          "title": "Decoder",
+          "type": "string"
+        },
+        "dynamic_batch": {
+          "title": "Dynamic Batch",
+          "type": "boolean"
+        },
+        "format": {
+          "const": "onnx",
+          "title": "Format",
+          "type": "string"
+        },
+        "input_height": {
+          "exclusiveMinimum": 0,
+          "maximum": 4096,
+          "title": "Input Height",
+          "type": "integer"
+        },
+        "input_name": {
+          "minLength": 1,
+          "title": "Input Name",
+          "type": "string"
+        },
+        "input_width": {
+          "exclusiveMinimum": 0,
+          "maximum": 4096,
+          "title": "Input Width",
+          "type": "integer"
+        },
+        "keypoints": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "maximum": 256,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Keypoints"
+        },
+        "mean": {
+          "description": "Вычитается после перевода в шкалу scale",
+          "maxItems": 3,
+          "minItems": 3,
+          "prefixItems": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "number"
+            },
+            {
+              "type": "number"
+            }
+          ],
+          "title": "Mean",
+          "type": "array"
+        },
+        "outputs": {
+          "items": {
+            "type": "string"
+          },
+          "minItems": 1,
+          "title": "Outputs",
+          "type": "array"
+        },
+        "scale": {
+          "description": "Делитель пикселей перед нормализацией: 255 или 1",
+          "exclusiveMinimum": 0,
+          "title": "Scale",
+          "type": "number"
+        },
+        "simcc_split_ratio": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Simcc Split Ratio"
+        },
+        "std": {
+          "maxItems": 3,
+          "minItems": 3,
+          "prefixItems": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "number"
+            },
+            {
+              "type": "number"
+            }
+          ],
+          "title": "Std",
+          "type": "array"
+        }
+      },
+      "required": [
+        "format",
+        "input_name",
+        "input_width",
+        "input_height",
+        "color",
+        "mean",
+        "std",
+        "scale",
+        "outputs",
+        "dynamic_batch",
+        "decoder"
+      ],
+      "title": "ModelRuntime",
+      "type": "object"
+    },
     "ModelSource": {
       "enum": [
         "pretrained",
@@ -87,6 +250,17 @@
       ],
       "default": null,
       "title": "Promoted By"
+    },
+    "runtime": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/ModelRuntime"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
     },
     "source": {
       "$ref": "#/$defs/ModelSource"

@@ -11,6 +11,8 @@ channels:
     enabled: false
     bot_token_secret: telegram_bot_token
     timeout_s: 5             # дольше ждать нельзя: задержка одного канала не должна тормозить ретраи
+    # Адрес Bot API. Меняется, если объект ходит в интернет через прокси/зеркало (и в e2e-тестах).
+    api_base: https://api.telegram.org
   local_relay:
     enabled: false           # включается в мастере после указания адреса реле/сирены
     http:
@@ -34,6 +36,8 @@ delivery:
   max_attempts: 10
   initial_backoff_s: 1
   max_backoff_s: 60
+  # Проход очереди и проверка эскалации. Новые доставки будят очередь сразу, это — страховка.
+  poll_interval_s: 1
 
 groups:
   shift_operators:

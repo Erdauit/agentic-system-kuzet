@@ -44,11 +44,16 @@ from shared.schemas import (
     CameraSource,
     CandidateSource,
     DiscoveredDevice,
+    FloorCalibration,
+    Polygon,
     ProbeReport,
     QualityBaseline,
     StreamCandidate,
     StreamProbe,
     StreamRole,
+    WorkWindow,
+    Zone,
+    ZoneKind,
 )
 from shared.storage import LocalFSBlobStore
 from shared.telemetry import get_logger
@@ -381,7 +386,12 @@ class CameraService:
         except Exception as exc:  # MediaMTX недоступен — повторим при следующей синхронизации
             log.warning("mediamtx_reconcile_failed", error=str(exc))
 
-    def registry(self, rows: list[models.Camera]) -> list[CameraRegistryEntry]:
+    def registry(
+        self, rows: list[models.Camera], zones: list[models.Zone] | None = None
+    ) -> list[CameraRegistryEntry]:
+        by_camera: dict[str, list[Zone]] = {}
+        for z in zones or []:
+            by_camera.setdefault(z.camera_id, []).append(zone_from_row(z))
         entries = []
         for row in rows:
             analysis_fps = None
@@ -398,18 +408,114 @@ class CameraService:
                     sub_path=sub_path(row.id) if row.sub_url else None,
                     expected_fps=analysis_fps,
                     baseline=QualityBaseline.model_validate(row.baseline) if row.baseline else None,
+                    scenarios=row.scenarios,
+                    zones=by_camera.get(row.id, []),
+                    floor=FloorCalibration.model_validate(row.calibration)
+                    if row.calibration
+                    else None,
                 )
             )
         return entries
 
+    async def list_zones(self, camera_id: str | None = None) -> list[models.Zone]:
+        async with self.sessions() as s:
+            q = select(models.Zone).order_by(models.Zone.camera_id, models.Zone.id)
+            if camera_id is not None:
+                q = q.where(models.Zone.camera_id == camera_id)
+            return list(await s.scalars(q))
+
     async def publish_registry(self) -> None:
-        entries = self.registry(await self.list_all())
+        entries = self.registry(await self.list_all(), await self.list_zones())
         payload = json.dumps([e.model_dump(mode="json") for e in entries], ensure_ascii=False)
         try:
             await self.valkey.set(REGISTRY_KEY, payload)
             await self.valkey.publish(REGISTRY_CHANNEL, str(uuid.uuid4()))
         except Exception as exc:
             log.warning("registry_publish_failed", error=str(exc))
+
+    async def replace_zones(self, camera_id: str, zones: list[Zone], actor: str) -> list[Zone]:
+        """Полная замена зон камеры (редактор зон, мастер шаг 5)."""
+        for z in zones:
+            if z.camera_id != camera_id:
+                raise CameraError(f"зона {z.id} принадлежит другой камере")
+        ids = [z.id for z in zones]
+        if len(set(ids)) != len(ids):
+            raise CameraError("повторяющиеся id зон")
+        now = datetime.now(UTC)
+        async with self.sessions() as s:
+            if await s.get(models.Camera, camera_id) is None:
+                raise CameraError("камера не найдена")
+            clash = await s.scalar(
+                select(models.Zone.id).where(
+                    models.Zone.id.in_(ids), models.Zone.camera_id != camera_id
+                )
+            )
+            if clash:
+                raise CameraError(f"id зоны {clash} уже занят другой камерой")
+            existing = {
+                z.id: z
+                for z in await s.scalars(
+                    select(models.Zone).where(models.Zone.camera_id == camera_id)
+                )
+            }
+            for zid, old in existing.items():
+                if zid not in ids:
+                    await s.delete(old)
+            for z in zones:
+                data = z.model_dump(mode="json")
+                zrow = existing.get(z.id)
+                if zrow is None:
+                    zrow = models.Zone(id=z.id, camera_id=camera_id, created_at=now)
+                    s.add(zrow)
+                zrow.name = z.name
+                zrow.kind = z.kind.value
+                zrow.polygon = data["polygon"]
+                zrow.dwell_seconds = z.dwell_seconds
+                zrow.work_schedule = data["work_schedule"]
+                zrow.area = z.area
+                zrow.updated_at = now
+            await write_audit(
+                s,
+                actor=actor,
+                action="zones_change",
+                target=f"camera:{camera_id}",
+                details={"zones": ids},
+            )
+            await s.commit()
+        await self.publish_registry()
+        return [zone_from_row(z) for z in await self.list_zones(camera_id)]
+
+    async def set_calibration(
+        self, camera_id: str, calibration: FloorCalibration | None, actor: str
+    ) -> None:
+        async with self.sessions() as s:
+            row = await s.get(models.Camera, camera_id)
+            if row is None:
+                raise CameraError("камера не найдена")
+            row.calibration = calibration.model_dump(mode="json") if calibration else None
+            row.updated_at = datetime.now(UTC)
+            await write_audit(
+                s,
+                actor=actor,
+                action="calibration_change",
+                target=f"camera:{camera_id}",
+                details={"calibrated": calibration is not None},
+            )
+            await s.commit()
+        await self.publish_registry()
+
+
+def zone_from_row(row: models.Zone) -> Zone:
+    return Zone(
+        id=row.id,
+        camera_id=row.camera_id,
+        name=row.name,
+        kind=ZoneKind(row.kind),
+        polygon=Polygon.model_validate(row.polygon),
+        dwell_seconds=row.dwell_seconds,
+        work_schedule=[WorkWindow.model_validate(w) for w in row.work_schedule],
+        area=row.area,
+    )
 
 
 _HOST_RE = re.compile(r"^[a-z]+://(?:[^@/]*@)?(\[[^\]]+\]|[^:/?#]+)")

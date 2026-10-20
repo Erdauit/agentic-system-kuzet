@@ -22,8 +22,8 @@ sync:
 	uv sync --frozen
 
 lint:
-	uv run ruff check src tests
-	uv run ruff format --check src tests
+	uv run ruff check src tests tools
+	uv run ruff format --check src tests tools
 
 format:
 	uv run ruff format src tests

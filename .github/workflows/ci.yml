@@ -49,8 +49,8 @@ jobs:
         run: uv sync --frozen
       - name: Ruff
         run: |
-          uv run ruff check src tests
-          uv run ruff format --check src tests
+          uv run ruff check src tests tools
+          uv run ruff format --check src tests tools
       - name: Mypy
         run: make typecheck
       - name: Тесты (юнит, контрактные, интеграционные)
@@ -89,7 +89,7 @@ jobs:
           shellcheck install.sh
 
   e2e:
-    name: Приёмка Фазы 1 (Docker, симулятор камер)
+    name: Приёмка Фаз 1–2 (Docker, симулятор камер и приёмник алертов)
     runs-on: ubuntu-24.04
     timeout-minutes: 60
     needs: [python, ui]

@@ -32,6 +32,14 @@ SLO_OFFLINE_P95 = (
 )
 
 
+def slo_alert_p95(event_type: str) -> str:
+    """p95 «срабатывание FSM → первый отправленный алерт» за 7 дней по типу события."""
+    return (
+        "histogram_quantile(0.95, sum(rate("
+        f'alert_latency_seconds_bucket{{type="{event_type}"}}[7d])) by (le))'
+    )
+
+
 class QueryError(Exception):
     pass
 

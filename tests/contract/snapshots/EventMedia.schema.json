@@ -1,0 +1,163 @@
+{
+  "$defs": {
+    "BBox": {
+      "additionalProperties": false,
+      "description": "Прямоугольник в нормализованных координатах кадра.",
+      "properties": {
+        "x1": {
+          "maximum": 1.0,
+          "minimum": 0.0,
+          "title": "X1",
+          "type": "number"
+        },
+        "x2": {
+          "maximum": 1.0,
+          "minimum": 0.0,
+          "title": "X2",
+          "type": "number"
+        },
+        "y1": {
+          "maximum": 1.0,
+          "minimum": 0.0,
+          "title": "Y1",
+          "type": "number"
+        },
+        "y2": {
+          "maximum": 1.0,
+          "minimum": 0.0,
+          "title": "Y2",
+          "type": "number"
+        }
+      },
+      "required": [
+        "x1",
+        "y1",
+        "x2",
+        "y2"
+      ],
+      "title": "BBox",
+      "type": "object"
+    },
+    "ClipRef": {
+      "additionalProperties": false,
+      "description": "Клип инцидента, вырезанный из GOP-буфера без перекодирования.",
+      "properties": {
+        "blob_key": {
+          "minLength": 1,
+          "title": "Blob Key",
+          "type": "string"
+        },
+        "codec": {
+          "maxLength": 20,
+          "minLength": 1,
+          "title": "Codec",
+          "type": "string"
+        },
+        "ends_at": {
+          "format": "date-time",
+          "title": "Ends At",
+          "type": "string"
+        },
+        "starts_at": {
+          "format": "date-time",
+          "title": "Starts At",
+          "type": "string"
+        }
+      },
+      "required": [
+        "blob_key",
+        "starts_at",
+        "ends_at",
+        "codec"
+      ],
+      "title": "ClipRef",
+      "type": "object"
+    },
+    "FrameRef": {
+      "additionalProperties": false,
+      "description": "Ссылка на кадр в BlobStore (ключевой кадр, кадр-доказательство).",
+      "properties": {
+        "bbox": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/BBox"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "blob_key": {
+          "minLength": 1,
+          "title": "Blob Key",
+          "type": "string"
+        },
+        "captured_at": {
+          "format": "date-time",
+          "title": "Captured At",
+          "type": "string"
+        }
+      },
+      "required": [
+        "blob_key",
+        "captured_at"
+      ],
+      "title": "FrameRef",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "description": "Клип и ключевые кадры события — vision-pipeline публикует их после окончания окна клипа\n(+clip_post_s после события).",
+  "properties": {
+    "camera_id": {
+      "pattern": "^[a-z0-9][a-z0-9_\\-]{0,63}$",
+      "title": "Camera Id",
+      "type": "string"
+    },
+    "clip": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/ClipRef"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "error": {
+      "anyOf": [
+        {
+          "maxLength": 500,
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "Почему клипа нет (буфер пуст и т.п.)",
+      "title": "Error"
+    },
+    "event_id": {
+      "format": "uuid",
+      "title": "Event Id",
+      "type": "string"
+    },
+    "keyframes": {
+      "items": {
+        "$ref": "#/$defs/FrameRef"
+      },
+      "maxItems": 6,
+      "title": "Keyframes",
+      "type": "array"
+    }
+  },
+  "required": [
+    "event_id",
+    "camera_id"
+  ],
+  "title": "EventMedia",
+  "type": "object"
+}

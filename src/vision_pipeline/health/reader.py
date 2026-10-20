@@ -1,13 +1,13 @@
-"""Чтение потока камеры из MediaMTX (PyAV) в отдельном потоке ОС.
+"""Поток анализа камеры (substream): Camera Health + кадры для hot path + GOP-буфер.
 
-Для экономии CPU декодируются только I-кадры (обычно раз в 1–3 с): этого достаточно для всех
-проверок Camera Health. Полное декодирование (NVDEC) появится в hot path в Фазе 2.
+Без сценариев hot path декодируются только I-кадры (обычно раз в 1–3 с): этого достаточно для
+всех проверок Camera Health. Если на камере включены сценарии, декодируется каждый кадр, а
+кадры уходят в hot path (frame_sink); Camera Health по-прежнему смотрит на I-кадры.
 """
 
 from __future__ import annotations
 
 import threading
-import time
 from collections.abc import Callable
 from datetime import UTC, datetime
 from typing import Any
@@ -16,19 +16,17 @@ import av
 import numpy as np
 
 from shared.config.models import CameraHealthConfig
-from shared.telemetry import get_logger
 from vision_pipeline.health.analysis import analyze
 from vision_pipeline.health.assessor import StatsSnapshot, StreamStats
 from vision_pipeline.health.view_shift import Reference, ViewShiftDetector
+from vision_pipeline.ingest.gop import GopBuffer
+from vision_pipeline.ingest.stream import StreamReader
 
-log = get_logger("camera-reader")
-
-# Сокет RTSP не блокируется дольше 3 с: поток-читатель успевает заметить остановку и
-# переподключиться, а «нет потока» всё равно определяет оценщик по stream_timeout_s.
-SOCKET_TIMEOUT_US = 3_000_000
+# Получатель декодированных кадров: (кадр PyAV, настенное время кадра) → кадр ушёл в инференс.
+FrameSink = Callable[[av.VideoFrame, float], bool]
 
 
-class CameraReader(threading.Thread):
+class CameraReader(StreamReader):
     def __init__(
         self,
         camera_id: str,
@@ -36,16 +34,21 @@ class CameraReader(threading.Thread):
         cfg: Callable[[], CameraHealthConfig],
         reference: Callable[[], Reference | None],
         detector: ViewShiftDetector,
+        gop: GopBuffer | None = None,
+        frame_sink: FrameSink | None = None,
     ) -> None:
-        super().__init__(name=f"camera-{camera_id}", daemon=True)
+        def backoff() -> tuple[float, float]:
+            c = cfg()
+            return c.reconnect_backoff_min_s, c.reconnect_backoff_max_s
+
+        super().__init__(f"camera-{camera_id}", url, backoff, gop)
         self.camera_id = camera_id
-        self.url = url
         self.cfg = cfg
         self.reference = reference
         self.detector = detector
+        self.frame_sink = frame_sink
         self.stats = StreamStats()
         self.lock = threading.Lock()
-        self.stop_event = threading.Event()
         self._last_view_shift = 0.0
 
     def snapshot(self) -> StatsSnapshot:
@@ -59,53 +62,29 @@ class CameraReader(threading.Thread):
                 frames=list(s.frames),
                 reconnects_total=s.reconnects_total,
                 decode_errors_total=s.decode_errors_total,
-                analyzed_times=list(s.frames_analyzed_times),
+                # С hot path «обработано» — кадры, ушедшие в инференс; без него — I-кадры health.
+                analyzed_times=list(
+                    s.inferred_times if self.frame_sink is not None else s.frames_analyzed_times
+                ),
                 view_shift_score=s.view_shift_score,
             )
 
-    def stop(self) -> None:
-        self.stop_event.set()
+    def on_connect(self, stream: Any) -> None:
+        if self.frame_sink is not None:
+            stream.codec_context.thread_type = "AUTO"
+        with self.lock:
+            if self.stats.connected_once:
+                self.stats.reconnects_total += 1
+            self.stats.connected_once = True
 
-    def run(self) -> None:
-        backoff = self.cfg().reconnect_backoff_min_s
-        while not self.stop_event.is_set():
-            try:
-                self._read_once()
-                backoff = self.cfg().reconnect_backoff_min_s
-            except av.error.FFmpegError as exc:
-                log.debug("camera_stream_error", camera=self.camera_id, error=str(exc))
-            except Exception:  # поток-читатель не должен умирать
-                log.exception("camera_reader_crash", camera=self.camera_id)
-            if self.stop_event.wait(backoff):
-                break
-            backoff = min(backoff * 2, self.cfg().reconnect_backoff_max_s)
-
-    def _read_once(self) -> None:
-        options = {"rtsp_transport": "tcp", "timeout": str(SOCKET_TIMEOUT_US)}
-        container = av.open(self.url, options=options, timeout=(5.0, 5.0))
-        try:
-            stream = container.streams.video[0]
-            with self.lock:
-                if self.stats.connected_once:
-                    self.stats.reconnects_total += 1
-                self.stats.connected_once = True
-            for packet in container.demux(stream):
-                if self.stop_event.is_set():
-                    return
-                if packet.size == 0:
-                    continue
-                now = time.monotonic()
-                with self.lock:
-                    self.stats.last_packet_mono = now
-                    self.stats.last_packet_wall = datetime.now(UTC)
-                    self.stats.packet_times.append(now)
-                if packet.is_keyframe:
-                    self._analyze(packet, now)
-        finally:
-            container.close()
-
-    def _analyze(self, packet: Any, now: float) -> None:
-        cfg = self.cfg()
+    def on_packet(self, packet: Any, t: float, now_mono: float) -> None:
+        with self.lock:
+            self.stats.last_packet_mono = now_mono
+            self.stats.last_packet_wall = datetime.now(UTC)
+            self.stats.packet_times.append(now_mono)
+        sink = self.frame_sink
+        if sink is None and not packet.is_keyframe:
+            return
         try:
             frames = packet.decode()
         except av.error.InvalidDataError:
@@ -113,17 +92,24 @@ class CameraReader(threading.Thread):
                 self.stats.decode_errors_total += 1
             return
         for frame in frames:
-            gray = np.asarray(frame.to_ndarray(format="gray"), dtype=np.uint8)
-            stats, small = analyze(gray, now, cfg.analysis_width, cfg.occlusion_grid)
-            score: float | None = None
-            if now - self._last_view_shift >= cfg.view_shift_check_interval_s:
-                ref = self.reference()
-                if ref is not None:
-                    score = self.detector.score(ref, small)
-                    self._last_view_shift = now
-            with self.lock:
-                self.stats.frames.append(stats)
-                self.stats.frames_analyzed_times.append(now)
-                if score is not None:
-                    self.stats.view_shift_score = score
-            break
+            if packet.is_keyframe:
+                self._analyze(frame, now_mono)
+            if sink is not None and sink(frame, self.clock.wall(frame.time)):
+                with self.lock:
+                    self.stats.inferred_times.append(now_mono)
+
+    def _analyze(self, frame: Any, now: float) -> None:
+        cfg = self.cfg()
+        gray = np.asarray(frame.to_ndarray(format="gray"), dtype=np.uint8)
+        stats, small = analyze(gray, now, cfg.analysis_width, cfg.occlusion_grid)
+        score: float | None = None
+        if now - self._last_view_shift >= cfg.view_shift_check_interval_s:
+            ref = self.reference()
+            if ref is not None:
+                score = self.detector.score(ref, small)
+                self._last_view_shift = now
+        with self.lock:
+            self.stats.frames.append(stats)
+            self.stats.frames_analyzed_times.append(now)
+            if score is not None:
+                self.stats.view_shift_score = score

@@ -54,7 +54,7 @@ export interface StreamProbe {
 }
 
 export interface CameraOut {
-  camera: { id: string; name: string; main_url: string; sub_url: string | null; enabled: boolean; vendor: string | null; model: string | null; location: string | null };
+  camera: { id: string; name: string; main_url: string; sub_url: string | null; enabled: boolean; vendor: string | null; model: string | null; location: string | null; scenarios: string[] };
   status: CameraStatus;
   health: CameraHealth | null;
   probes: StreamProbe[];
@@ -163,3 +163,122 @@ export interface Delivery {
 }
 
 export const isAdmin = (u: User | null) => u !== null && (u.role === "site_admin" || u.role === "qoima_engineer");
+
+// ---------------------------------------------------------------- Фаза 2: инциденты, зоны, самотест
+
+export type EventType = "fall" | "red_zone" | "smoke_fire" | "fall_recovered";
+export type IncidentState = "OPEN" | "ACKNOWLEDGED" | "RESOLVED" | "FALSE_ALARM";
+export type ReasonCode = "steam" | "welding" | "repair_lying" | "reflection" | "other";
+
+export interface FrameRef {
+  blob_key: string;
+  captured_at: string;
+  bbox: { x1: number; y1: number; x2: number; y2: number } | null;
+}
+
+export interface ClipRef {
+  blob_key: string;
+  starts_at: string;
+  ends_at: string;
+  codec: string;
+}
+
+export interface QEvent {
+  id: string;
+  type: EventType;
+  camera_id: string;
+  zone_id: string | null;
+  track_ids: number[];
+  started_at: string;
+  detected_at: string;
+  detector_score: number;
+  routing: "event" | "event_with_arbiter";
+  model_version: string;
+  evidence: FrameRef[];
+  area: string | null;
+  synthetic: "selftest" | "canary" | null;
+}
+
+export interface Incident {
+  id: string;
+  type: Exclude<EventType, "fall_recovered">;
+  state: IncidentState;
+  severity: "critical" | "high" | "medium" | "low";
+  zone_id: string | null;
+  camera_ids: string[];
+  event_ids: string[];
+  opened_at: string;
+  acknowledged_at: string | null;
+  acknowledged_by: string | null;
+  resolved_at: string | null;
+  clip: ClipRef | null;
+  keyframes: FrameRef[];
+  area: string | null;
+  synthetic: "selftest" | "canary" | null;
+  escalation_level: number;
+}
+
+export interface IncidentDelivery {
+  channel: string;
+  target: string;
+  level: number;
+  status: "pending" | "sent" | "retrying" | "failed";
+  attempt: number;
+  error: string | null;
+  sent_at: string | null;
+}
+
+export interface IncidentOut {
+  incident: Incident;
+  events: QEvent[];
+  deliveries: IncidentDelivery[];
+}
+
+export interface Point {
+  x: number;
+  y: number;
+}
+
+export interface Zone {
+  id: string;
+  camera_id: string;
+  name: string;
+  kind: "red_zone" | "monitoring";
+  polygon: { points: Point[] };
+  dwell_seconds: number | null;
+  work_schedule: unknown[];
+  area: string | null;
+}
+
+export interface CalibrationOut {
+  calibration: {
+    image_points: Point[];
+    known_distance: { point_a: number; point_b: number; meters: number } | null;
+    homography: number[][] | null;
+    calibrated_at: string;
+  } | null;
+  metric: boolean;
+}
+
+export interface SelfTestStatus {
+  id: string;
+  started_at: string;
+  slo_seconds: number;
+  cameras: { camera_id: string; event_id: string; event_received: boolean; evidence: boolean; incident_id: string | null }[];
+  incidents: {
+    incident_id: string;
+    camera_ids: string[];
+    area: string | null;
+    clip: ClipRef | null;
+    keyframes: number;
+    first_alert_seconds: number | null;
+    within_slo: boolean;
+    deliveries: { channel: string; target: string; status: string; attempt: number; error: string | null }[];
+  }[];
+  all_delivered: boolean;
+  clip_ready: boolean;
+  confirmed_at: string | null;
+  confirmed_by: string | null;
+}
+
+export const mediaUrl = (key: string) => `/api/v1/media/${key.split("/").map(encodeURIComponent).join("/")}`;

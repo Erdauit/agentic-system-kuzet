@@ -231,6 +231,15 @@
       "title": "Severity",
       "type": "string"
     },
+    "SyntheticKind": {
+      "description": "Служебные события, которые проходят весь путь до каналов (SPEC.md §3.2 шаг 8, §6.1).\n\nselftest — сквозной самотест из мастера: уходит во все каналы, человек подтверждает получение;\ncanary — периодическая канарейка: только в системный канал, операторов не беспокоит.",
+      "enum": [
+        "selftest",
+        "canary"
+      ],
+      "title": "SyntheticKind",
+      "type": "string"
+    },
     "VLMVerdict": {
       "additionalProperties": false,
       "description": "Ответ VLM. Числового поля confidence нет: самооценка VLM не является вероятностью.",
@@ -307,6 +316,19 @@
       ],
       "default": null
     },
+    "area": {
+      "anyOf": [
+        {
+          "pattern": "^[a-z0-9][a-z0-9_\\-]{0,63}$",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Area"
+    },
     "camera_ids": {
       "items": {
         "pattern": "^[a-z0-9][a-z0-9_\\-]{0,63}$",
@@ -332,6 +354,14 @@
       "minLength": 1,
       "title": "Dedup Key",
       "type": "string"
+    },
+    "escalation_level": {
+      "default": 0,
+      "description": "Последний отправленный уровень эскалации",
+      "maximum": 10,
+      "minimum": 0,
+      "title": "Escalation Level",
+      "type": "integer"
     },
     "event_ids": {
       "items": {
@@ -378,6 +408,17 @@
     },
     "state": {
       "$ref": "#/$defs/IncidentState"
+    },
+    "synthetic": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/SyntheticKind"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
     },
     "type": {
       "$ref": "#/$defs/EventType"

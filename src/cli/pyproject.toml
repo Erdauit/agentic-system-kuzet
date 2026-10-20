@@ -1,6 +1,6 @@
 [project]
 name = "qoima-cli"
-version = "0.2.0"
+version = "0.3.0"
 description = "CLI qoima: up/down/status/doctor и сервисные команды"
 requires-python = ">=3.12"
 license = "LicenseRef-Qoima-Proprietary"

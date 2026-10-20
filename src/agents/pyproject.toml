@@ -1,6 +1,6 @@
 [project]
 name = "qoima-agents"
-version = "0.2.0"
+version = "0.3.0"
 description = "agents: LangGraph-графы и плейбуки агентов"
 requires-python = ">=3.12"
 license = "LicenseRef-Qoima-Proprietary"

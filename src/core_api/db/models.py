@@ -32,7 +32,10 @@ from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 
 from shared.schemas import (
     SAFETY_EVENT_TYPES,
+    AlertStream,
     CameraSource,
+    ChannelKind,
+    DeliveryStatus,
     EventType,
     FeedbackVerdict,
     IncidentState,
@@ -43,6 +46,7 @@ from shared.schemas import (
     Role,
     RoutingDecision,
     Severity,
+    SyntheticKind,
     SystemAlertKind,
     SystemAlertSeverity,
     TaskType,
@@ -224,6 +228,7 @@ class Zone(Base):
     polygon: Mapped[dict[str, Any]] = mapped_column(JSONB)
     dwell_seconds: Mapped[float | None] = mapped_column(Float)
     work_schedule: Mapped[list[Any]] = mapped_column(server_default=JSONB_EMPTY_LIST)
+    area: Mapped[str | None] = mapped_column(String(64))
     created_at: Mapped[datetime] = _tz_now()
     updated_at: Mapped[datetime] = _tz_now()
 
@@ -255,9 +260,15 @@ class Incident(Base):
     keyframes: Mapped[list[Any]] = mapped_column(server_default=JSONB_EMPTY_LIST)
     vlm_verdict: Mapped[dict[str, Any] | None] = mapped_column(JSONB)
     arbiter_outcome: Mapped[dict[str, Any] | None] = mapped_column(JSONB)
+    area: Mapped[str | None] = mapped_column(String(64))
+    synthetic: Mapped[str | None] = mapped_column(String(16))
+    escalation_level: Mapped[int] = mapped_column(Integer, server_default=text("0"))
+    last_escalated_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    last_event_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
     __table_args__ = (
         CheckConstraint(f"type IN ({sql_in(_SAFETY_TYPES)})", name="type_valid"),
+        enum_check("synthetic", SyntheticKind, nullable=True),
         enum_check("state", IncidentState),
         enum_check("severity", Severity),
         CheckConstraint("(state = 'OPEN') = (acknowledged_at IS NULL)", name="ack_matches_state"),
@@ -287,10 +298,13 @@ class Event(Base):
     routing: Mapped[str] = mapped_column(String(32))
     model_version: Mapped[str] = mapped_column(String(120))
     evidence: Mapped[list[Any]] = mapped_column(server_default=JSONB_EMPTY_LIST)
+    area: Mapped[str | None] = mapped_column(String(64))
+    synthetic: Mapped[str | None] = mapped_column(String(16))
     created_at: Mapped[datetime] = _tz_now()
 
     __table_args__ = (
         enum_check("type", EventType),
+        enum_check("synthetic", SyntheticKind, nullable=True),
         enum_check("routing", RoutingDecision),
         CheckConstraint("detector_score >= 0 AND detector_score <= 1", name="score_range"),
         CheckConstraint("detected_at >= started_at", name="detected_after_start"),
@@ -354,4 +368,44 @@ class Model(Base):
             unique=True,
             postgresql_where=text("status = 'active'"),
         ),
+    )
+
+
+class AlertDeliveryRow(Base):
+    """Доставка алерта в канал: at-least-once с идемпотентным ключом и ретраями (SPEC.md §7).
+
+    Ключ — sha256(поток|инцидент|канал|получатель|уровень эскалации): повторная постановка той же
+    доставки не создаёт дубль у получателя.
+    """
+
+    __tablename__ = "alert_deliveries"
+
+    idempotency_key: Mapped[str] = mapped_column(String(64), primary_key=True)
+    stream: Mapped[str] = mapped_column(String(16))
+    channel: Mapped[str] = mapped_column(String(16))
+    target: Mapped[str] = mapped_column(String(200))
+    incident_id: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("incidents.id", ondelete="CASCADE")
+    )
+    system_alert_id: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("system_alerts.id", ondelete="CASCADE")
+    )
+    escalation_level: Mapped[int] = mapped_column(Integer, server_default=text("0"))
+    attempt: Mapped[int] = mapped_column(Integer, server_default=text("0"))
+    status: Mapped[str] = mapped_column(String(16))
+    last_error: Mapped[str | None] = mapped_column(Text)
+    created_at: Mapped[datetime] = _tz_now()
+    next_attempt_at: Mapped[datetime] = _tz_now()
+    sent_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+    __table_args__ = (
+        enum_check("stream", AlertStream),
+        enum_check("channel", ChannelKind),
+        enum_check("status", DeliveryStatus),
+        CheckConstraint(
+            "(stream = 'safety') = (incident_id IS NOT NULL) AND (stream = 'system') = (system_alert_id IS NOT NULL)",
+            name="stream_reference",
+        ),
+        Index(None, "status", "next_attempt_at"),
+        Index(None, "incident_id"),
     )

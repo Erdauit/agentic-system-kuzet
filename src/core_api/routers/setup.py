@@ -1,17 +1,20 @@
-"""Мастер настройки: шаг 1 (объект), шаг 2 (железо — отчёт doctor), шаг 7 (алерты)."""
+"""Мастер настройки: шаг 1 (объект), шаг 2 (железо — отчёт doctor), шаг 7 (алерты),
+шаг 8 (сквозной самотест) и канарейка пути алерта."""
 
 from __future__ import annotations
 
 import asyncio
 import os
 import tempfile
+import uuid
 from pathlib import Path
 from typing import Annotated, Any
 
 from fastapi import APIRouter, Depends, HTTPException, status
+from pydantic import Field
 
 from core_api.alerts.channels import AlertMessage
-from core_api.api_models import ChannelTestIn, DeliveryOut, SiteIn, TelegramTokenIn
+from core_api.api_models import ApiModel, ChannelTestIn, DeliveryOut, SiteIn, TelegramTokenIn
 from core_api.audit import write_audit
 from core_api.auth.deps import AdminUser, CurrentUser
 from core_api.context import AppContext, get_ctx
@@ -189,3 +192,57 @@ async def test_channel(body: ChannelTestIn, user: AdminUser, ctx: Ctx) -> list[D
         DeliveryOut(channel=r.channel.value, target=r.target, ok=r.ok, error=r.error)
         for r in results
     ]
+
+
+# ---------------------------------------------------------------- шаг 8: сквозной самотест
+
+
+class SelfTestIn(ApiModel):
+    camera_ids: list[str] = Field(min_length=1, max_length=32)
+
+
+@router.post("/selftest", status_code=status.HTTP_202_ACCEPTED)
+async def start_selftest(body: SelfTestIn, user: AdminUser, ctx: Ctx) -> dict[str, Any]:
+    """Тестовое событие на камерах → алерт с кадром и клипом во все каналы (пометка «САМОТЕСТ»)."""
+    try:
+        run = await ctx.selftest.start(body.camera_ids, user.actor)
+    except ValueError as exc:
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, str(exc)) from exc
+    return await ctx.selftest.status(run.id) or {}
+
+
+@router.get("/selftest/{run_id}")
+async def selftest_status(run_id: uuid.UUID, _user: AdminUser, ctx: Ctx) -> dict[str, Any]:
+    result = await ctx.selftest.status(run_id)
+    if result is None:
+        raise HTTPException(
+            status.HTTP_404_NOT_FOUND, "самотест не найден (после рестарта — запустите заново)"
+        )
+    return result
+
+
+@router.post("/selftest/{run_id}/confirm")
+async def selftest_confirm(run_id: uuid.UUID, user: AdminUser, ctx: Ctx) -> dict[str, Any]:
+    """Человек подтверждает, что алерты дошли во все каналы."""
+    result = await ctx.selftest.confirm(run_id, user.actor)
+    if result is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "самотест не найден")
+    return result
+
+
+@router.get("/canary")
+async def canary_status(_user: AdminUser, ctx: Ctx) -> dict[str, Any]:
+    cfg = ctx.config.defaults.canary
+    return {
+        "enabled": cfg.alert_path_enabled,
+        "interval_minutes": cfg.interval_minutes,
+        "last": ctx.selftest.last_canary,
+    }
+
+
+@router.post("/canary/run")
+async def canary_run(user: AdminUser, ctx: Ctx) -> dict[str, Any]:
+    async with ctx.cameras.sessions() as s:
+        await write_audit(s, actor=user.actor, action="canary_run", target="canary")
+        await s.commit()
+    return await ctx.selftest.canary_once()

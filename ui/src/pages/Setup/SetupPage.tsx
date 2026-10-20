@@ -4,14 +4,18 @@ import { ApiError, api, patch, post, put } from "../../api/client";
 import { connectRealtime } from "../../api/realtime";
 import type { AddResult, CameraOut, Delivery, DiscoveryJob, HardwareOut, SiteSettings } from "../../api/types";
 import type { MessageKey, T } from "../../i18n";
+import { SelfTestStep } from "./SelfTestStep";
+import { ZonesStep } from "./ZonesStep";
 
-type Step = "site" | "hardware" | "cameras" | "alerts";
+type Step = "site" | "hardware" | "cameras" | "zones" | "alerts" | "selftest";
 
 const STEPS: { id: Step; title: MessageKey }[] = [
   { id: "site", title: "setup.step1" },
   { id: "hardware", title: "setup.step2" },
   { id: "cameras", title: "setup.step3" },
+  { id: "zones", title: "setup.step5" },
   { id: "alerts", title: "setup.step7" },
+  { id: "selftest", title: "setup.step8" },
 ];
 
 const errText = (e: unknown) => (e instanceof ApiError ? e.message : String(e));
@@ -459,7 +463,9 @@ export function SetupPage({ t }: { t: T }) {
       {step === "site" && <SiteStep t={t} />}
       {step === "hardware" && <HardwareStep t={t} />}
       {step === "cameras" && <CamerasStep t={t} />}
+      {step === "zones" && <ZonesStep t={t} />}
       {step === "alerts" && <AlertsStep t={t} />}
+      {step === "selftest" && <SelfTestStep t={t} />}
     </section>
   );
 }

@@ -14,6 +14,7 @@ from fastapi import FastAPI, HTTPException
 from fastapi.responses import FileResponse, JSONResponse
 from prometheus_client import (
     CollectorRegistry,
+    Counter,
     Gauge,
     Histogram,
     PlatformCollector,
@@ -23,6 +24,7 @@ from prometheus_client import (
 
 from core_api import __version__
 from core_api.alerts.channels import ChannelDispatcher
+from core_api.alerts.delivery import DeliveryService
 from core_api.alerts.system import SystemAlertManager
 from core_api.auth.service import AuthService
 from core_api.cameras.credentials import CredentialStore
@@ -31,9 +33,21 @@ from core_api.cameras.mediamtx import MediaMtxClient
 from core_api.cameras.service import CameraService
 from core_api.context import AppContext
 from core_api.db.migrate import head_revision
+from core_api.incidents.manager import IncidentManager
 from core_api.metrics_query import PrometheusClient
 from core_api.realtime import Broadcaster
-from core_api.routers import auth, cameras, health, realtime, setup, system_alerts, users
+from core_api.routers import (
+    auth,
+    cameras,
+    health,
+    incidents,
+    realtime,
+    setup,
+    system_alerts,
+    users,
+    zones,
+)
+from core_api.selftest import SelfTestService
 from core_api.settings import Settings
 from core_api.site_config import SiteConfigStore
 from core_api.system_health import HealthDeps, collect
@@ -110,12 +124,28 @@ def create_app(
     disk_gauge = create_metric("disk_free_bytes", registry)
     if not isinstance(disk_gauge, Gauge):
         raise TypeError("disk_free_bytes в каталоге метрик должен быть gauge")
-    offline_detection = Histogram(
-        "camera_offline_detection_seconds",
-        "От последнего пакета камеры до системного алерта «нет потока» (SLO ≤ 15 с)",
-        buckets=(1, 2, 5, 8, 10, 12, 15, 20, 30, 60),
-        registry=registry,
-    )
+    offline_detection = create_metric("camera_offline_detection_seconds", registry)
+    if not isinstance(offline_detection, Histogram):
+        raise TypeError("camera_offline_detection_seconds в каталоге должен быть histogram")
+
+    def histogram(name: str) -> Histogram:
+        m = create_metric(name, registry)
+        if not isinstance(m, Histogram):
+            raise TypeError(f"{name} в каталоге должен быть histogram")
+        return m
+
+    def counter(name: str) -> Counter:
+        m = create_metric(name, registry)
+        if not isinstance(m, Counter):
+            raise TypeError(f"{name} в каталоге должен быть counter")
+        return m
+
+    alert_latency = histogram("alert_latency_seconds")
+    ack_seconds = histogram("alert_ack_seconds")
+    canary_seconds = histogram("canary_e2e_seconds")
+    alerts_total = counter("alerts_total")
+    escalations = counter("alert_escalations_total")
+    canary_failures = counter("canary_failures_total")
 
     def watch_disk(root: Path) -> None:
         # Значение считается при каждом скрейпе Prometheus, а не только при открытии UI.
@@ -159,6 +189,24 @@ def create_app(
         alerts = SystemAlertManager(
             engine, vk, broadcaster, dispatcher, current_config, names, offline_detection
         )
+        delivery = DeliveryService(
+            engine,
+            dispatcher,
+            broadcaster,
+            current_config,
+            blobs,
+            alerts,
+            names,
+            alert_latency,
+            escalations,
+        )
+        dispatcher.web_hook = delivery.web_hook
+        incident_manager = IncidentManager(
+            engine, vk, broadcaster, delivery, current_config, alerts_total, ack_seconds
+        )
+        selftest = SelfTestService(
+            engine, vk, incident_manager, alerts, current_config, canary_seconds, canary_failures
+        )
         site_file = settings.site_config or (data_root / "config" / "site.yaml")
         ctx = AppContext(
             settings=settings,
@@ -181,6 +229,9 @@ def create_app(
             else None,
             data_root=data_root,
             runtime_secrets=settings.runtime_secrets_dir,
+            delivery=delivery,
+            incidents=incident_manager,
+            selftest=selftest,
         )
         holder["ctx"] = ctx
         return ctx
@@ -231,8 +282,12 @@ def create_app(
                 await ctx.alerts.handle_system_health(await collect(deps))
 
             tasks: list[asyncio.Task[None]] = []
+            stop = asyncio.Event()
             if settings.background_tasks:
                 tasks = [
+                    asyncio.create_task(ctx.incidents.run(stop)),
+                    asyncio.create_task(ctx.delivery.run(stop)),
+                    asyncio.create_task(ctx.selftest.canary_loop(stop)),
                     asyncio.create_task(ctx.alerts.consume()),
                     asyncio.create_task(ctx.alerts.watch_silence()),
                     asyncio.create_task(
@@ -251,6 +306,7 @@ def create_app(
             try:
                 yield
             finally:
+                stop.set()
                 for t in tasks:
                     t.cancel()
                 for t in tasks:
@@ -275,6 +331,8 @@ def create_app(
         setup.router,
         system_alerts.router,
         realtime.router,
+        incidents.router,
+        zones.router,
     ):
         app.include_router(r)
     app.state.metrics_registry = registry
