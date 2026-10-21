@@ -23,6 +23,7 @@ from enum import StrEnum
 from pathlib import Path
 
 from cli.compose import ComposePlan, parse_ps
+from cli.hostenv import docker_gpu_works, nvidia_smi, windows_drive, wsl_networking_mode
 from cli.paths import REQUIRED_SECRETS
 from cli.runner import Runner
 from shared.config import ConfigError, QoimaConfig, load_config
@@ -60,7 +61,14 @@ def version_at_least(actual: str, minimum: str) -> bool:
 # ---------------------------------------------------------------- ОС
 
 
-def check_os(system: str, os_release: str | None) -> Outcome:
+def check_os(system: str, os_release: str | None, wsl: bool = False) -> Outcome:
+    if system == "Linux" and wsl:
+        return Outcome(
+            "ОС",
+            Level.WARN,
+            "WSL2 (Linux под Windows): подходит для проверки и демонстрации, не для объекта",
+            "На объекте — Ubuntu 22.04/24.04 LTS без Windows (docs/WINDOWS.md)",
+        )
     if system != "Linux":
         return Outcome(
             "ОС",
@@ -105,7 +113,7 @@ def parse_cuda_version(nvidia_smi_header: str) -> str | None:
 def check_nvidia(runner: Runner, cfg: QoimaConfig) -> tuple[list[Outcome], list[Gpu]]:
     query = runner(
         [
-            "nvidia-smi",
+            nvidia_smi(),
             "--query-gpu=index,name,driver_version,memory.total",
             "--format=csv,noheader,nounits",
         ]
@@ -225,13 +233,83 @@ def check_nvidia_runtime(runner: Runner) -> Outcome:
         return Outcome(
             "nvidia-container-toolkit", Level.OK, "runtime nvidia зарегистрирован в Docker"
         )
+    # Docker Desktop (Windows) и CDI дают GPU контейнерам без runtime «nvidia» — проверяем делом.
+    works, detail = docker_gpu_works(runner)
+    if works:
+        return Outcome(
+            "nvidia-container-toolkit", Level.OK, f"GPU доступен в контейнерах ({detail})"
+        )
     return Outcome(
         "nvidia-container-toolkit",
         Level.FAIL,
-        "runtime nvidia не зарегистрирован в Docker",
-        "Установите nvidia-container-toolkit, затем: sudo nvidia-ctk runtime configure --runtime=docker "
-        "&& sudo systemctl restart docker",
+        f"контейнер не видит GPU: {detail or 'runtime nvidia не зарегистрирован в Docker'}",
+        "Linux/WSL с Docker Engine: установите nvidia-container-toolkit, затем "
+        "sudo nvidia-ctk runtime configure --runtime=docker && sudo systemctl restart docker. "
+        "Docker Desktop: Settings → Resources → WSL integration и обновите драйвер NVIDIA в Windows",
     )
+
+
+def check_wsl(
+    runner: Runner, min_free_gb: float, min_memory_gb: float, meminfo: str | None
+) -> list[Outcome]:
+    """Проверки стенда WSL2: сеть для автопоиска, диск Windows под виртуальным диском, память, systemd."""
+    out: list[Outcome] = []
+    mode = wsl_networking_mode(runner)
+    if mode == "mirrored":
+        out.append(Outcome("WSL: сеть", Level.OK, "mirrored — автопоиск видит сеть Windows"))
+    else:
+        out.append(
+            Outcome(
+                "WSL: сеть",
+                Level.WARN,
+                f"режим сети: {mode or 'неизвестен (NAT по умолчанию)'} — автопоиск видит только сеть WSL",
+                "В %UserProfile%\\.wslconfig: [wsl2] networkingMode=mirrored, затем wsl --shutdown; "
+                "или укажите подсеть камер в мастере (шаг 1)",
+            )
+        )
+    drive = windows_drive("c")
+    if drive is not None:
+        usage = shutil.disk_usage(drive)
+        free_gb = usage.free / 1024**3
+        detail = f"диск Windows C: свободно {free_gb:.0f} ГБ (на нём растёт виртуальный диск WSL)"
+        if free_gb < min_free_gb:
+            out.append(
+                Outcome(
+                    "WSL: диск Windows",
+                    Level.FAIL,
+                    detail,
+                    f"Нужно ≥ {min_free_gb:g} ГБ на диске с WSL: освободите место или перенесите дистрибутив "
+                    "(wsl --export / wsl --import на другой диск)",
+                )
+            )
+        else:
+            out.append(Outcome("WSL: диск Windows", Level.OK, detail))
+    total_gb = None
+    if meminfo:
+        m = re.search(r"^MemTotal:\s+(\d+)\s+kB", meminfo, re.MULTILINE)
+        total_gb = int(m.group(1)) / 1024**2 if m else None
+    if total_gb is not None:
+        if total_gb < min_memory_gb:
+            out.append(
+                Outcome(
+                    "WSL: память",
+                    Level.WARN,
+                    f"WSL видит {total_gb:.0f} ГБ ОЗУ < {min_memory_gb:g} ГБ",
+                    "По умолчанию WSL берёт половину памяти Windows: в .wslconfig задайте [wsl2] memory=…GB",
+                )
+            )
+        else:
+            out.append(Outcome("WSL: память", Level.OK, f"WSL видит {total_gb:.0f} ГБ ОЗУ"))
+    if not Path("/run/systemd/system").is_dir():
+        out.append(
+            Outcome(
+                "WSL: systemd",
+                Level.WARN,
+                "systemd не запущен — Docker и таймер qoima doctor не стартуют сами",
+                "В /etc/wsl.conf: [boot] systemd=true, затем в Windows: wsl --shutdown",
+            )
+        )
+    return out
 
 
 # ---------------------------------------------------------------- диск и время
@@ -273,7 +351,21 @@ def parse_chrony(output: str) -> tuple[float | None, str | None]:
     )
 
 
-def check_time(runner: Runner, max_offset_ms: float) -> Outcome:
+def check_time(runner: Runner, max_offset_ms: float, wsl: bool = False) -> Outcome:
+    outcome = _check_time(runner, max_offset_ms)
+    if wsl and outcome.level is Level.FAIL:
+        # Стенд WSL2 берёт время у Windows; после сна Windows бывает сдвиг. Для проверки это не
+        # блокер, на объекте (Linux) — блокер.
+        return Outcome(
+            outcome.name,
+            Level.WARN,
+            outcome.detail,
+            "WSL2: время берётся у Windows; после сна выполните sudo hwclock -s или поставьте chrony",
+        )
+    return outcome
+
+
+def _check_time(runner: Runner, max_offset_ms: float) -> Outcome:
     chrony = runner(["chronyc", "-n", "tracking"])
     if chrony.ok:
         offset_ms, leap = parse_chrony(chrony.stdout)

@@ -1,0 +1,26 @@
+# Окончания строк — всегда LF, в том числе при клонировании из Windows (Git for Windows с
+# core.autocrlf=true). Иначе скрипты в контейнерах и install.sh ломаются («/bin/bash^M»),
+# а образы и проверки ведут себя по-разному на разных машинах.
+* text=auto eol=lf
+
+*.sh text eol=lf
+*.py text eol=lf
+*.yml text eol=lf
+*.yaml text eol=lf
+*.tmpl text eol=lf
+*.sdp text eol=lf
+Dockerfile text eol=lf
+*.Dockerfile text eol=lf
+Makefile text eol=lf
+install.sh text eol=lf
+# PowerShell-скрипты для Windows-хоста — с CRLF, как их ждёт Windows.
+*.ps1 text eol=crlf
+
+# Бинарные данные никогда не преобразуются.
+*.mp4 binary
+*.jpg binary
+*.jpeg binary
+*.png binary
+*.onnx binary
+*.ttf binary
+*.pdf binary

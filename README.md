@@ -49,6 +49,8 @@ qoima up
 qoima doctor
 ```
 
+Стенд на Windows с GPU (WSL2, для проверки) — [docs/WINDOWS.md](docs/WINDOWS.md).
+
 Разработка без GPU (macOS/Linux, Docker):
 
 ```bash

@@ -213,6 +213,8 @@ VersionString = Annotated[str, Field(pattern=r"^\d+(\.\d+){0,2}$")]
 
 class DoctorConfig(Section):
     min_free_disk_gb: PositiveFloat
+    wsl_min_free_disk_gb: PositiveFloat
+    wsl_min_memory_gb: PositiveFloat
     max_clock_offset_ms: PositiveFloat
     min_driver_cuda_version: VersionString
     min_docker_version: VersionString

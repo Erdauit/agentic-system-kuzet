@@ -56,6 +56,11 @@
   Docker) — только `qoima bench` на сервере.
 - Нагрузочная проверка плана ±15% — Фаза 9.
 
+## Стенд на Windows (WSL2)
+- Установка на реальной машине Windows + GPU не проводилась — проверки покрыты тестами;
+  ждём вывод `qoima doctor` со стенда. Не проверены: NVDEC в WSL, live-просмотр в режиме mirrored,
+  автозапуск через планировщик задач Windows.
+
 ## Фаза 4 — LLM и VLM-арбитр
 - Сервис `llm` в compose (сейчас health: «не развёрнуто»), клиент с приоритетами и constrained
   decoding, арбитр, режимы shadow/assist. Контракты `VLMVerdict`/`ArbiterOutcome` уже есть.

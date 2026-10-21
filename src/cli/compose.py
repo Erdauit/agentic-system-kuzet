@@ -9,6 +9,7 @@ from pathlib import Path
 from typing import Any, Literal
 
 from cli import __version__
+from cli.hostenv import nvidia_smi
 from cli.runner import Runner
 
 PROJECT = "qoima"
@@ -92,7 +93,7 @@ def build_plan(
 
 
 def count_gpus(runner: Runner) -> int:
-    result = runner(["nvidia-smi", "--query-gpu=index", "--format=csv,noheader"])
+    result = runner([nvidia_smi(), "--query-gpu=index", "--format=csv,noheader"])
     if not result.ok:
         return 0
     return len([line for line in result.stdout.splitlines() if line.strip()])

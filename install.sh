@@ -50,6 +50,26 @@ fi
 
 # ---------------------------------------------------------------- 1. предварительные проверки
 info "Проверка окружения"
+WSL=0
+if grep -qi microsoft /proc/version 2>/dev/null || [[ -e /proc/sys/fs/binfmt_misc/WSLInterop ]]; then
+    WSL=1
+    warn "WSL2 (Linux под Windows): стенд для проверки, не для объекта — docs/WINDOWS.md"
+    # Каталог на диске Windows (/mnt/c/...): нет прав Linux (секреты 600 не выставить), медленный
+    # ввод-вывод для сборки и данных. Репозиторий должен лежать внутри Linux (~).
+    case "${QOIMA_HOME}" in
+        /mnt/[a-zA-Z]/*) fail "репозиторий лежит на диске Windows (${QOIMA_HOME}). Склонируйте его внутрь WSL: cd ~ && git clone https://github.com/Erdauit/agentic-system-kuzet.git" ;;
+    esac
+    # nvidia-smi драйвера Windows лежит в /usr/lib/wsl/lib; sudo этот каталог из PATH убирает.
+    if ! command -v nvidia-smi >/dev/null 2>&1 && [[ -x /usr/lib/wsl/lib/nvidia-smi ]]; then
+        export PATH="${PATH}:/usr/lib/wsl/lib"
+    fi
+fi
+# Окончания строк: клон из Windows с core.autocrlf=true ломает скрипты в контейнерах. В
+# репозитории есть .gitattributes (всегда LF), но старый клон надо перевыгрузить.
+crlf="$(grep -l $'\r' "${QOIMA_HOME}"/docker/camera-sim/*.sh "${QOIMA_HOME}"/configs/*.yaml 2>/dev/null || true)"
+if [[ -n "${crlf}" ]]; then
+    fail "в файлах окончания строк Windows (CRLF): ${crlf//$'\n'/, }. Склонируйте репозиторий заново git-ом внутри WSL (не Git for Windows): cd ~ && git clone https://github.com/Erdauit/agentic-system-kuzet.git"
+fi
 if [[ "${DEV}" -eq 0 ]]; then
     [[ "$(uname -s)" == "Linux" ]] || fail "боевая установка поддерживается только на Linux (для разработки: --dev)"
     [[ "${EUID}" -eq 0 ]] || fail "запустите от root: sudo ./install.sh"
@@ -60,8 +80,13 @@ docker compose version >/dev/null 2>&1 || fail "плагин docker compose v2 �
 command -v openssl >/dev/null 2>&1 || fail "openssl не найден — нужен для генерации TLS-сертификата"
 if [[ "${DEV}" -eq 0 ]]; then
     command -v nvidia-smi >/dev/null 2>&1 || fail "драйвер NVIDIA не найден (nvidia-smi). Установите драйвер ветки R580+"
-    docker info --format '{{json .Runtimes}}' | grep -q '"nvidia"' \
-        || fail "nvidia-container-toolkit не настроен: sudo nvidia-ctk runtime configure --runtime=docker && sudo systemctl restart docker"
+    if ! docker info --format '{{json .Runtimes}}' | grep -q '"nvidia"'; then
+        # Docker Desktop (Windows) и CDI дают GPU без runtime «nvidia» — проверяем делом.
+        info "runtime nvidia не зарегистрирован — проверяю GPU в контейнере (docker run --gpus all)"
+        docker run --rm --gpus all postgres:16.15-bookworm nvidia-smi -L >/dev/null 2>&1 \
+            || fail "контейнеры не видят GPU. Docker Engine: sudo nvidia-ctk runtime configure --runtime=docker && sudo systemctl restart docker. Docker Desktop: включите WSL integration и обновите драйвер NVIDIA в Windows"
+        info "GPU в контейнерах доступен"
+    fi
     if ! command -v chronyc >/dev/null 2>&1; then
         warn "chrony не найден — синхронизацию времени нужно настроить (SPEC.md §3.1), проверит qoima doctor"
     fi
@@ -70,6 +95,13 @@ fi
 # ---------------------------------------------------------------- 2. CLI
 info "Установка CLI qoima"
 UV_BIN="$(command -v uv || true)"
+if [[ -z "${UV_BIN}" && -n "${SUDO_USER:-}" ]]; then
+    # uv ставится в домашний каталог пользователя (~/.local/bin), а sudo сбрасывает PATH.
+    user_home="$(getent passwd "${SUDO_USER}" | cut -d: -f6)"
+    for candidate in "${user_home}/.local/bin/uv" "${user_home}/.cargo/bin/uv"; do
+        [[ -x "${candidate}" ]] && UV_BIN="${candidate}" && break
+    done
+fi
 [[ -n "${UV_BIN}" ]] || fail "uv не найден. Установите uv (https://docs.astral.sh/uv/) — в офлайн-бандле Фазы 9 он будет в комплекте"
 # Отдельное окружение .venv-cli: на хосте нужен только CLI, а .venv разработчика не трогаем.
 CLI_ENV="${QOIMA_HOME}/.venv-cli"
@@ -82,6 +114,8 @@ if [[ "${DEV}" -eq 0 ]]; then
 #!/usr/bin/env bash
 export QOIMA_HOME="${QOIMA_HOME}"
 export QOIMA_DATA_ROOT="${DATA_ROOT}"
+# WSL2: nvidia-smi драйвера Windows (под sudo и systemd этого каталога нет в PATH).
+[[ -d /usr/lib/wsl/lib ]] && export PATH="\${PATH}:/usr/lib/wsl/lib"
 exec "${QOIMA_BIN}" "\$@"
 EOF
     chmod 755 /usr/local/bin/qoima
@@ -181,7 +215,10 @@ info "Сборка образов Qoima (первый раз — 10–20 мин�
 # ---------------------------------------------------------------- 5a. таймер qoima doctor
 # Контейнеры не видят драйвер, chrony и диски хоста: отчёт doctor раз в 5 минут попадает в UI
 # (мастер, шаг 2; «Время» в состоянии системы).
-if [[ "${DEV}" -eq 0 ]] && command -v systemctl >/dev/null 2>&1; then
+if [[ "${DEV}" -eq 0 ]] && [[ ! -d /run/systemd/system ]]; then
+    # В WSL без systemd команда systemctl есть, но не работает — таймер не ставим, объясняем.
+    warn "systemd не запущен — таймер qoima doctor не установлен (отчёт для мастера: qoima doctor --report вручную). WSL: [boot] systemd=true в /etc/wsl.conf, затем wsl --shutdown"
+elif [[ "${DEV}" -eq 0 ]] && command -v systemctl >/dev/null 2>&1; then
     info "Таймер qoima-doctor (раз в 5 минут)"
     cat > /etc/systemd/system/qoima-doctor.service <<UNIT
 [Unit]
@@ -213,6 +250,9 @@ DOCTOR_ARGS=()
 if QOIMA_HOME="${QOIMA_HOME}" QOIMA_DATA_ROOT="${DATA_ROOT}" "${QOIMA_BIN}" doctor --report "${DOCTOR_ARGS[@]}"; then
     info "Первый вход: логин admin, пароль — в ${SECRETS_DIR}/admin_initial_password (система попросит сменить)"
     info "Установка завершена. Запуск: $([[ "${DEV}" -eq 1 ]] && echo "QOIMA_DATA_ROOT=${DATA_ROOT} .venv-cli/bin/qoima up --no-gpu" || echo "qoima up")"
+    if [[ "${WSL}" -eq 1 ]]; then
+        info "WSL2: UI с этого компьютера — https://localhost/; с других — нужен networkingMode=mirrored и правило брандмауэра Windows (docs/WINDOWS.md)"
+    fi
 else
     warn "doctor нашёл проблемы — исправьте их по рекомендациям и запустите qoima doctor снова"
     exit 1

@@ -35,7 +35,8 @@ def fake_runner(responses: dict[str, CommandResult]) -> Runner:
     """Ответ выбирается по первому совпавшему префиксу команды."""
 
     def run(args: Sequence[str]) -> CommandResult:
-        joined = " ".join(args)
+        # Первый аргумент — по имени: nvidia-smi может прийти полным путём (/usr/lib/wsl/lib/...).
+        joined = " ".join([Path(args[0]).name, *args[1:]])
         for prefix, result in responses.items():
             if joined.startswith(prefix):
                 return result
@@ -211,3 +212,75 @@ def test_container_check(repo_root: Path) -> None:
     }
     empty = check_containers(fake_runner({"docker compose": ok("")}), plan)
     assert empty[0].level is Level.SKIP
+
+
+# ---------------------------------------------------------------- WSL2 (Windows)
+
+
+def test_gpu_in_docker_without_nvidia_runtime_docker_desktop() -> None:
+    """Docker Desktop даёт GPU без runtime «nvidia» — проверка делом засчитывает это."""
+    desktop = fake_runner(
+        {
+            "docker info": ok('{"runc":{"path":"runc"}}'),
+            "docker run --rm --gpus all": ok("GPU 0: NVIDIA GeForce RTX 4090 (UUID: GPU-1)\n"),
+        }
+    )
+    result = check_nvidia_runtime(desktop)
+    assert result.level is Level.OK and "RTX 4090" in result.detail
+
+
+def test_os_check_wsl() -> None:
+    wsl = check_os("Linux", 'PRETTY_NAME="Ubuntu 24.04.1 LTS"', wsl=True)
+    assert wsl.level is Level.WARN and "WSL2" in wsl.detail and "Ubuntu" in wsl.recommendation
+
+
+def test_time_failure_is_warning_on_wsl() -> None:
+    drift = CHRONY.replace("0.000012345", "0.250000000")
+    assert check_time(fake_runner({"chronyc": ok(drift)}), 50, wsl=True).level is Level.WARN
+    assert check_time(fake_runner({"chronyc": ok(drift)}), 50).level is Level.FAIL
+
+
+def test_wsl_checks(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    import shutil as sh
+    from collections import namedtuple
+
+    from cli import doctor
+
+    usage = namedtuple("usage", "total used free")
+    monkeypatch.setattr(doctor, "windows_drive", lambda letter="c": tmp_path)
+    monkeypatch.setattr(
+        sh, "disk_usage", lambda p: usage(500 * 1024**3, 450 * 1024**3, 50 * 1024**3)
+    )
+    meminfo = "MemTotal:        8000000 kB\n"
+    nat = doctor.check_wsl(
+        fake_runner({"wslinfo --networking-mode": ok("nat\n")}), 200, 16, meminfo
+    )
+    by = {o.name: o for o in nat}
+    assert by["WSL: сеть"].level is Level.WARN and "mirrored" in by["WSL: сеть"].recommendation
+    assert by["WSL: диск Windows"].level is Level.FAIL  # 50 ГБ на C: < 200 ГБ
+    assert (
+        by["WSL: память"].level is Level.WARN and ".wslconfig" in by["WSL: память"].recommendation
+    )
+    mirrored = doctor.check_wsl(
+        fake_runner({"wslinfo --networking-mode": ok("mirrored\n")}), 20, 4, meminfo
+    )
+    by = {o.name: o for o in mirrored}
+    assert by["WSL: сеть"].level is Level.OK and by["WSL: диск Windows"].level is Level.OK
+    assert by["WSL: память"].level is Level.OK
+
+
+def test_hostenv_helpers(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    from cli import hostenv
+
+    assert hostenv.is_wsl("5.15.167.4-microsoft-standard-WSL2", tmp_path / "none")
+    assert not hostenv.is_wsl("6.8.0-45-generic", tmp_path / "none")
+    assert hostenv.under_windows_mount(Path("/mnt/c/Users/me/qoima"))
+    assert not hostenv.under_windows_mount(Path("/home/me/qoima"))
+    fake_smi = tmp_path / "nvidia-smi"
+    fake_smi.write_text("")
+    monkeypatch.setattr(hostenv.shutil, "which", lambda name: None)
+    monkeypatch.setattr(hostenv, "WSL_NVIDIA_SMI", fake_smi)
+    assert hostenv.nvidia_smi() == str(fake_smi)  # под sudo/systemd PATH без /usr/lib/wsl/lib
+    monkeypatch.setattr(hostenv, "WSL_NVIDIA_SMI", tmp_path / "missing")
+    assert hostenv.nvidia_smi() == "nvidia-smi"
+    assert hostenv.wsl_networking_mode(fake_runner({})) is None  # старый WSL без wslinfo

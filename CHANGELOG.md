@@ -1,5 +1,15 @@
 # Changelog
 
+## [Unreleased] — стенд на Windows (WSL2)
+
+### Добавлено
+- Поддержка стенда WSL2: проверки установщика (репозиторий не на `/mnt/c`, LF вместо CRLF,
+  nvidia-smi и uv под sudo, GPU в контейнерах «делом» — в том числе Docker Desktop, таймер doctor
+  только при systemd), `qoima doctor` для WSL (сеть mirrored/NAT, диск Windows, память, systemd,
+  мягкая проверка времени), `qoima up` без dcgm-exporter и с подсказкой про автопоиск в NAT.
+- `.gitattributes`: всегда LF. Руководство docs/WINDOWS.md, таблица занимаемого места в
+  ADMIN_GUIDE.md.
+
 ## [0.4.0] — 2026-10-21 — Фаза 3: планировщик мощности и бенчмарки
 
 ### Добавлено

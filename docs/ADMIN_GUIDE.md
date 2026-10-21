@@ -11,11 +11,33 @@
 | Драйвер NVIDIA | с поддержкой CUDA 13.x (ветка R580+) | `qoima doctor` |
 | Docker Engine | ≥ 24.0 + плагин compose ≥ 2.20 | `install.sh`, `qoima doctor` |
 | nvidia-container-toolkit | runtime `nvidia` зарегистрирован в Docker | `install.sh`, `qoima doctor` |
-| Диск под данные | ≥ 200 ГБ свободно в `/var/lib/qoima` | `qoima doctor` |
+| Диск под данные | ≥ 200 ГБ свободно в `/var/lib/qoima` (рекомендуется SSD/NVMe 500 ГБ – 1 ТБ) | `qoima doctor` |
 | Время | chrony, смещение ≤ 50 мс | `qoima doctor` |
 | uv | для установки CLI | `install.sh` |
 
-Пороговые значения — `configs/defaults.yaml`, раздел `doctor`.
+Пороговые значения — `configs/defaults.yaml`, раздел `doctor`. Стенд на Windows (WSL2) — см.
+[WINDOWS.md](WINDOWS.md).
+
+### Сколько места занимает система
+
+Замерено на сборке 0.4.0; клипы и датасеты растут со временем.
+
+| Что | Объём |
+|---|---|
+| Образы Qoima без GPU (core-api, vision-pipeline, agents, worker-gpu, media-base) | ≈ 2,3 ГБ |
+| vision-pipeline-gpu (CUDA 13, cuDNN 9, TensorRT 10) | ≈ 6,3 ГБ |
+| Triton 26.08 (GPU-профили) | ≈ 18 ГБ на диске (8,9 ГБ скачивается) |
+| Прочие образы (Postgres, Valkey, Qdrant, MediaMTX, Prometheus) | ≈ 2 ГБ |
+| Кэш сборки образов | 10–15 ГБ (освобождается `docker builder prune` после установки) |
+| Модели и кэш движков TensorRT | 1–2 ГБ; веса VLM (Фаза 4) — ещё 10–20 ГБ |
+| Подготовка RF-DETR (`tools/models`, один раз, torch) | 5–8 ГБ кэша uv — можно делать на другой машине |
+| Клип инцидента (≈ 40 с mainstream ≈ 4 Мбит/с) + кадры | ≈ 20 МБ; 100 инцидентов в день × 30 дней ≈ 60 ГБ |
+| Postgres, метрики Prometheus (30 дней) | единицы ГБ |
+| Датасеты и обучение (Фазы 6–7, хранение 365 дней) | десятки–сотни ГБ |
+
+Итог: установка с GPU-профилем занимает ≈ 45 ГБ на пике (во время сборки), дальше растут клипы,
+датасеты и веса моделей — поэтому `qoima doctor` требует ≥ 200 ГБ свободно, а для объекта
+рекомендуется отдельный NVMe на 500 ГБ – 1 ТБ под `/var/lib/qoima`.
 
 ## Установка
 

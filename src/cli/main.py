@@ -39,8 +39,10 @@ from cli.doctor import (
     check_os,
     check_secrets,
     check_time,
+    check_wsl,
     write_report,
 )
+from cli.hostenv import is_wsl, wsl_networking_mode
 from cli.netinfo import host_addresses
 from cli.paths import (
     DATA_DIRS,
@@ -102,14 +104,6 @@ def _load(config_dir: Path | None, home: Path) -> QoimaConfig:
         return load_config(config_dir or home / "configs")
     except ConfigError as exc:
         _fail("конфигурация не прошла проверку:\n  " + "\n  ".join(exc.errors))
-
-
-def is_wsl() -> bool:
-    """Linux под Windows (WSL2): ядро Microsoft или интеграция WSL."""
-    return (
-        "microsoft" in platform.release().lower()
-        or Path("/proc/sys/fs/binfmt_misc/WSLInterop").exists()
-    )
 
 
 def _https_port() -> int:
@@ -212,6 +206,11 @@ def up(
             "[yellow]WSL2: мониторинг GPU (dcgm-exporter) не запускается — метрики GPU недоступны.[/]"
         )
         args += ["--scale", "dcgm-exporter=0"]
+    if is_wsl() and wsl_networking_mode(run_command) != "mirrored":
+        err_console.print(
+            "[yellow]WSL2 в режиме NAT: автопоиск увидит только сеть WSL. Включите "
+            "networkingMode=mirrored (docs/WINDOWS.md) или впишите подсеть камер в мастере, шаг 1.[/]"
+        )
     code = _compose(plan, *args, timeout_s=wait_timeout + 600)
     if code != 0:
         _fail("не все сервисы стали healthy. Подробности: qoima status, qoima doctor", code)
@@ -297,9 +296,12 @@ def doctor(
     gpus: list[Gpu] = []
 
     os_release_path = Path("/etc/os-release")
+    wsl = is_wsl()
     outcomes.append(
         check_os(
-            platform.system(), os_release_path.read_text() if os_release_path.is_file() else None
+            platform.system(),
+            os_release_path.read_text() if os_release_path.is_file() else None,
+            wsl,
         )
     )
     config_outcome, cfg = check_config(config_dir or home / "configs")
@@ -316,10 +318,20 @@ def doctor(
     outcomes.extend(check_docker(runner, cfg))
     if not no_gpu:
         outcomes.append(check_nvidia_runtime(runner))
-    outcomes.append(
-        check_disk(data_root(cfg.defaults.storage.data_root), cfg.defaults.doctor.min_free_disk_gb)
-    )
-    outcomes.append(check_time(runner, cfg.defaults.doctor.max_clock_offset_ms))
+    doc = cfg.defaults.doctor
+    min_free = doc.wsl_min_free_disk_gb if wsl else doc.min_free_disk_gb
+    outcomes.append(check_disk(data_root(cfg.defaults.storage.data_root), min_free))
+    outcomes.append(check_time(runner, cfg.defaults.doctor.max_clock_offset_ms, wsl))
+    if wsl:
+        meminfo = Path("/proc/meminfo")
+        outcomes.extend(
+            check_wsl(
+                runner,
+                doc.wsl_min_free_disk_gb,
+                doc.wsl_min_memory_gb,
+                meminfo.read_text() if meminfo.is_file() else None,
+            )
+        )
     outcomes.append(check_secrets(secrets_dir(home)))
     try:
         plan = build_plan(
