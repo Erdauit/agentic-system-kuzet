@@ -38,10 +38,12 @@ from shared.schemas import (
     DeliveryStatus,
     EventType,
     FeedbackVerdict,
+    FitVerdict,
     IncidentState,
     ModelSource,
     ModelStatus,
     PermissionLevel,
+    PlanStatus,
     ReasonCode,
     Role,
     RoutingDecision,
@@ -177,10 +179,18 @@ class Camera(Base):
     vendor: Mapped[str | None] = mapped_column(String(60))
     model: Mapped[str | None] = mapped_column(String(120))
     onvif_xaddr: Mapped[str | None] = mapped_column(Text)
+    # FPS анализа из применённого плана мощности; NULL — целевой FPS сценариев.
+    analysis_fps: Mapped[float | None] = mapped_column(Float)
     created_at: Mapped[datetime] = _tz_now()
     updated_at: Mapped[datetime] = _tz_now()
 
-    __table_args__ = (enum_check("source", CameraSource),)
+    __table_args__ = (
+        enum_check("source", CameraSource),
+        CheckConstraint(
+            "analysis_fps IS NULL OR (analysis_fps > 0 AND analysis_fps <= 30)",
+            name="analysis_fps_range",
+        ),
+    )
 
 
 class SystemAlert(Base):
@@ -408,4 +418,33 @@ class AlertDeliveryRow(Base):
         ),
         Index(None, "status", "next_attempt_at"),
         Index(None, "incident_id"),
+    )
+
+
+class CapacityPlanRow(Base):
+    """Планы мощности (Фаза 3). Активен не больше одного; применяет только человек."""
+
+    __tablename__ = "capacity_plans"
+
+    id: Mapped[uuid.UUID] = mapped_column(primary_key=True)
+    created_at: Mapped[datetime] = _tz_now()
+    created_by: Mapped[str] = mapped_column(String(120))
+    benchmark_id: Mapped[str] = mapped_column(String(32))
+    status: Mapped[str] = mapped_column(String(16))
+    verdict: Mapped[str] = mapped_column(String(32))
+    plan: Mapped[dict[str, Any]] = mapped_column(JSONB)
+    applied_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    applied_by: Mapped[str | None] = mapped_column(String(120))
+
+    __table_args__ = (
+        enum_check("status", PlanStatus),
+        enum_check("verdict", FitVerdict),
+        CheckConstraint("(status = 'draft') = (applied_at IS NULL)", name="applied_matches_status"),
+        Index(
+            "uq_capacity_plans_one_active",
+            "status",
+            unique=True,
+            postgresql_where=text("status = 'active'"),
+        ),
+        Index(None, "created_at"),
     )

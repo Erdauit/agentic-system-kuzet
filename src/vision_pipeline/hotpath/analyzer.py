@@ -108,8 +108,12 @@ class CameraAnalyzer:
 
     @property
     def target_fps(self) -> float:
+        """FPS анализа при движении: из применённого плана мощности (если он понизил FPS этой
+        камеры), иначе максимум целевых FPS включённых сценариев."""
         fps = [c.target_fps for c in (self.fall_cfg, self.red_cfg) if c is not None]
-        return max(fps) if fps else self.config.defaults.pipeline.motion.idle_fps
+        default = max(fps) if fps else self.config.defaults.pipeline.motion.idle_fps
+        planned = self.entry.analysis_fps
+        return min(planned, default) if planned is not None else default
 
     def wants_frame(self, t: float, thumb: NDArray[np.uint8]) -> bool:
         """Вызывается на каждом кадре с серой миниатюрой; True — отправить кадр в инференс."""

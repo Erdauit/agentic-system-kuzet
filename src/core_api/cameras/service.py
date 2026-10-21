@@ -413,6 +413,7 @@ class CameraService:
                     floor=FloorCalibration.model_validate(row.calibration)
                     if row.calibration
                     else None,
+                    analysis_fps=row.analysis_fps,
                 )
             )
         return entries

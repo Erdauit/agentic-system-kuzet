@@ -1,6 +1,6 @@
 [project]
 name = "qoima-core-api"
-version = "0.3.0"
+version = "0.4.0"
 description = "core-api: REST/WebSocket API, health, события, алерты, реестр моделей"
 requires-python = ">=3.12"
 license = "LicenseRef-Qoima-Proprietary"
@@ -16,6 +16,8 @@ dependencies = [
     "httpx>=0.27,<1",
     # Modbus/TCP для реле и сирены (BSD-3-Clause), без обязательных зависимостей.
     "pymodbus>=3.16,<4",
+    # PDF-отчёт плана мощности (мастер, шаг 6). ReportLab — BSD-3-Clause (license.txt пакета).
+    "reportlab>=4.4,<6",
 ]
 
 [tool.uv.sources]

@@ -123,7 +123,7 @@ class BatchingConfig(Section):
 
 
 class InferenceConfig(Section):
-    runtime: Literal["onnxruntime", "tensorrt"]
+    runtime: Literal["auto", "onnxruntime", "tensorrt"]
     models_dir: Path
     person_model: str = Field(min_length=1)
     pose_model: str | None
@@ -151,6 +151,7 @@ class TrackerConfig(Section):
 
 class PipelineConfig(Section):
     backend: Literal["lite", "deepstream"]
+    decode: Literal["auto", "cpu", "nvdec"]
     substream_max_height: Annotated[int, Field(gt=0, le=720)]  # SPEC.md §5.1: ≤ 720p
     gop_buffer_seconds: PositiveFloat
     gop_max_mb_per_stream: PositiveFloat
@@ -257,6 +258,54 @@ class SystemAlertsConfig(Section):
     doctor_report_max_age_minutes: PositiveFloat
 
 
+class DecodeProfile(Section):
+    codec: Literal["h264"]  # синтетика — только H.264: кодировщик HEVC в LGPL-сборке недоступен
+    width: PositiveInt
+    height: PositiveInt
+    fps: PositiveFloat
+
+
+class BenchConfig(Section):
+    repeats: Annotated[int, Field(ge=1, le=10)]
+    decode_seconds: PositiveFloat
+    decode_sample_seconds: PositiveFloat
+    max_parallel_decoders: Annotated[int, Field(ge=1, le=256)]
+    saturation_gain: Ratio
+    synthetic_profiles: list[DecodeProfile] = Field(min_length=1)
+    model_batches: list[Annotated[int, Field(ge=1, le=64)]] = Field(min_length=1)
+    model_warmup: Annotated[int, Field(ge=0)]
+    model_iterations: Annotated[int, Field(ge=3)]
+    vlm_concurrency: list[Annotated[int, Field(ge=1, le=64)]] = Field(min_length=1)
+    vlm_requests_per_level: Annotated[int, Field(ge=1)]
+    vlm_timeout_s: PositiveFloat
+
+
+class CapacityConfig(Section):
+    utilization_target: Ratio
+    motion_duty_cycle: Ratio
+    persons_per_frame: PositiveFloat
+    gray_requests_per_camera_hour: Annotated[float, Field(ge=0)]
+    gray_stats_days: PositiveInt
+    gray_stats_min_events: PositiveInt
+    gray_zone_min_width: Annotated[float, Field(gt=0, lt=1)]
+    scenario_priority: list[ScenarioKind] = Field(min_length=1)
+    fps_step: PositiveFloat
+    inference_latency_budget_ms: PositiveFloat
+    vlm_min_valid_json_ratio: Ratio
+    cuda_context_mb: Annotated[int, Field(ge=0)]
+    vram_reserve_mb: Annotated[int, Field(ge=0)]
+    triton_reserve_mb: Annotated[int, Field(ge=0)]
+    llm_min_mb: PositiveInt
+    ram_base_mb: Annotated[int, Field(ge=0)]
+    ram_max_ratio: Ratio
+
+    @model_validator(mode="after")
+    def _priority_complete(self) -> Self:
+        if sorted(self.scenario_priority) != sorted(set(ScenarioKind)):
+            raise ValueError("scenario_priority должен перечислять каждый сценарий ровно один раз")
+        return self
+
+
 class Defaults(Section):
     version: Literal[1]
     site: SiteConfig
@@ -274,6 +323,8 @@ class Defaults(Section):
     probe: ProbeConfig
     auth: AuthConfig
     system_alerts: SystemAlertsConfig
+    bench: BenchConfig
+    capacity: CapacityConfig
 
     @model_validator(mode="after")
     def _offline_detection_slo(self) -> Self:

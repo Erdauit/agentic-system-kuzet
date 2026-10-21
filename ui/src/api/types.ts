@@ -132,9 +132,13 @@ export interface DoctorOutcome {
   recommendation: string;
 }
 
+export type FitVerdict = "fits" | "fits_with_limitations" | "does_not_fit";
+
 export interface HardwareOut {
   report: { generated_at: string; hostname: string; outcomes: DoctorOutcome[] } | null;
-  verdict?: string;
+  verdict?: FitVerdict;
+  items?: { name: string; level: "ok" | "warn" | "fail"; detail: string }[];
+  bench_id?: string | null;
   age_minutes?: number;
   stale?: boolean;
   message?: string;
@@ -282,3 +286,60 @@ export interface SelfTestStatus {
 }
 
 export const mediaUrl = (key: string) => `/api/v1/media/${key.split("/").map(encodeURIComponent).join("/")}`;
+
+// ---------------------------------------------------------------- Фаза 3: план мощности
+
+export interface BenchSummary {
+  id: string;
+  started_at: string;
+  finished_at: string;
+  hostname: string;
+  gpus: string[];
+  decode: number;
+  models: string[];
+  vlm: boolean;
+  warnings: string[];
+}
+
+export interface CapacityAllocation {
+  camera_id: string;
+  scenario: string;
+  fps_active: number;
+  fps_idle: number;
+  target_fps: number;
+  gpu_index: number | null;
+}
+
+export interface CapacityPlan {
+  id: string;
+  created_at: string;
+  benchmark_id: string;
+  backend: string;
+  gpus: { index: number; name: string; vram_total_mb: number }[];
+  allocations: CapacityAllocation[];
+  vram: { gpu_index: number; total_mb: number; pipeline_mb: number; triton_mb: number; llm_mb: number; worker_mb: number; reserve_mb: number }[];
+  vlm: { measured_rps: number; expected_rps: number; max_load_ratio: number } | null;
+  llm_gpu_memory_utilization: number | null;
+  gray_zone: Record<string, { t_low: number; t_high: number }>;
+  verdict: FitVerdict;
+  warnings: string[];
+  utilization: { resource: string; used: number; capacity: number; unit: string; measured: boolean }[];
+  inputs_digest: string;
+}
+
+export interface StoredPlan {
+  plan: CapacityPlan;
+  status: "draft" | "active" | "superseded";
+  created_by: string;
+  applied_at: string | null;
+  applied_by: string | null;
+}
+
+export interface CapacityStatus {
+  bench_id: string | null;
+  active: StoredPlan | null;
+  draft: CapacityPlan | null;
+  stale: boolean;
+  changes: { camera_id: string; current: number | null; proposed: number }[];
+  messages: string[];
+}

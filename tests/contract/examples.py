@@ -216,6 +216,90 @@ EXAMPLES: dict[str, dict[str, Any]] = {
         },
         "verdict": "fits_with_limitations",
         "warnings": ["cam-08: FPS понижен с 3 до 2"],
+        "utilization": [
+            {
+                "resource": "decode:nvdec:0",
+                "used": 0.41,
+                "capacity": 0.8,
+                "unit": "доля",
+                "measured": True,
+            },
+            {
+                "resource": "inference:gpu:0",
+                "used": 0.66,
+                "capacity": 0.8,
+                "unit": "доля",
+                "measured": True,
+            },
+        ],
+        "inputs_digest": "b" * 64,
+    },
+    "BenchResult": {
+        "id": "bench-20261019-080000",
+        "started_at": T0,
+        "finished_at": T2,
+        "hardware": {
+            "hostname": "qoima-srv-01",
+            "cpu_model": "AMD EPYC 9124 16-Core Processor",
+            "cpu_cores": 32,
+            "ram_total_mb": 128000,
+            "gpus": [
+                {
+                    "index": 0,
+                    "name": "NVIDIA L40S",
+                    "vram_total_mb": 46068,
+                    "nvdec_available": True,
+                    "driver_version": "580.95",
+                    "cuda_version": "13.0",
+                }
+            ],
+            "onnxruntime": "1.31.0",
+            "providers": [
+                "TensorrtExecutionProvider",
+                "CUDAExecutionProvider",
+                "CPUExecutionProvider",
+            ],
+            "libavcodec": "62.11.100",
+            "pipeline_version": "0.4.0",
+        },
+        "repeats": 3,
+        "decode": [
+            {
+                "codec": "h264",
+                "width": 640,
+                "height": 360,
+                "source_fps": 15.0,
+                "backend": "nvdec",
+                "gpu_index": 0,
+                "parallel_streams": 32,
+                "fps_total": 2400.0,
+                "cv": 0.03,
+                "vram_per_stream_mb": 60,
+                "source": "camera",
+                "camera_ids": ["cam-07", "cam-08"],
+            }
+        ],
+        "models": [
+            {
+                "model": "rfdetr-person",
+                "version": "rfdetr-person-1.11.2+nano",
+                "runtime": "tensorrt",
+                "providers": [
+                    "TensorrtExecutionProvider",
+                    "CUDAExecutionProvider",
+                    "CPUExecutionProvider",
+                ],
+                "batch": 8,
+                "latency_p50_ms": 9.5,
+                "latency_p95_ms": 11.2,
+                "throughput": 840.0,
+                "cv": 0.04,
+                "vram_mb": 900,
+            }
+        ],
+        "vlm": [],
+        "live_load": {"cameras": 0, "decoded_fps": 0.0, "inferred_fps": 0.0},
+        "warnings": [],
     },
     "ComponentHealth": {
         "component": "postgres",
@@ -470,6 +554,7 @@ EXAMPLES: dict[str, dict[str, Any]] = {
             }
         ],
         "floor": None,
+        "analysis_fps": 6.0,
     },
     "DiscoveredDevice": DEVICE,
     "DiscoveryJob": {

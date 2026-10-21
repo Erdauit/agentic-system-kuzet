@@ -11,7 +11,9 @@ import os
 import platform
 import re
 import ssl
+import subprocess
 import sys
+import time
 import urllib.error
 import urllib.request
 from pathlib import Path
@@ -50,6 +52,7 @@ from cli.paths import (
 )
 from cli.runner import Runner, run_command
 from shared.config import ConfigError, QoimaConfig, load_config
+from shared.schemas import BenchResult
 
 app = typer.Typer(
     name="qoima",
@@ -99,6 +102,14 @@ def _load(config_dir: Path | None, home: Path) -> QoimaConfig:
         return load_config(config_dir or home / "configs")
     except ConfigError as exc:
         _fail("конфигурация не прошла проверку:\n  " + "\n  ".join(exc.errors))
+
+
+def is_wsl() -> bool:
+    """Linux под Windows (WSL2): ядро Microsoft или интеграция WSL."""
+    return (
+        "microsoft" in platform.release().lower()
+        or Path("/proc/sys/fs/binfmt_misc/WSLInterop").exists()
+    )
 
 
 def _https_port() -> int:
@@ -195,6 +206,12 @@ def up(
             _fail("сборка образов не удалась")
     console.print(f"Запуск ({plan.gpu_profile}{', engineering' if engineering else ''})…")
     args = ["up", "--detach", "--wait", "--wait-timeout", str(wait_timeout)]
+    if plan.gpu_profile != "none" and is_wsl():
+        # В WSL2 мониторинг DCGM недоступен: без этого up ждал бы healthy dcgm-exporter вечно.
+        err_console.print(
+            "[yellow]WSL2: мониторинг GPU (dcgm-exporter) не запускается — метрики GPU недоступны.[/]"
+        )
+        args += ["--scale", "dcgm-exporter=0"]
     code = _compose(plan, *args, timeout_s=wait_timeout + 600)
     if code != 0:
         _fail("не все сервисы стали healthy. Подробности: qoima status, qoima doctor", code)
@@ -351,10 +368,103 @@ def _later(command: str, phase: int) -> NoReturn:
     raise NotImplementedError(f"`qoima {command}` реализуется в Фазе {phase} (см. docs/TODO.md)")
 
 
+BENCH_DIR_IN_CONTAINER = "/var/lib/qoima/bench"
+
+
 @app.command()
-def bench() -> None:
-    """Бенчмарк NVDEC, моделей и VLM на этом сервере (Фаза 3)."""
-    _later("bench", 3)
+def bench(
+    no_gpu: NoGpuOpt = False,
+    vlm_url: Annotated[
+        str | None,
+        typer.Option(
+            "--vlm-url",
+            help="OpenAI-совместимый сервер VLM (vLLM/SGLang), например http://llm:8000",
+        ),
+    ] = None,
+    vlm_model: Annotated[
+        str | None, typer.Option("--vlm-model", help="Модель на сервере VLM")
+    ] = None,
+    no_cameras: Annotated[
+        bool, typer.Option("--no-cameras", help="Мерить только синтетические образцы видео")
+    ] = False,
+    quick: Annotated[
+        bool, typer.Option("--quick", help="Короткий прогон (проверка, не для плана)")
+    ] = False,
+    config_dir: ConfigDirOpt = None,
+) -> None:
+    """Бенчмарк этого сервера: декодирование (NVDEC/CPU), модели, VLM → основа плана мощности.
+
+    Запускается разовым контейнером из образа vision-pipeline — в той же среде, что и рабочий
+    пайплайн. Распознавание при этом не останавливается. Результат — в каталоге данных bench/,
+    план мощности по нему — в мастере настройки, шаг 6.
+    """
+    home = _home()
+    cfg = _load(config_dir, home)
+    plan = _plan(cfg, home, run_command, no_gpu=no_gpu, engineering=False)
+    host_dir = Path(plan.env["QOIMA_DATA_ROOT"]) / "bench"
+    args = ["python", "-m", "vision_pipeline.bench", "--out", BENCH_DIR_IN_CONTAINER]
+    if vlm_url:
+        args += ["--vlm-url", vlm_url]
+    if vlm_model:
+        args += ["--vlm-model", vlm_model]
+    if no_cameras:
+        args.append("--no-cameras")
+    if quick:
+        args.append("--quick")
+    started = time.time()
+    console.print("Бенчмарк запущен: несколько минут, распознавание продолжает работать…")
+    cmd = plan.command("run", "--rm", "--no-deps", "-T", "vision-pipeline", *args)
+    code = subprocess.run(cmd, env=plan.process_env(), check=False).returncode
+    if code != 0:
+        _fail(f"бенчмарк завершился с ошибкой (код {code}); логи выше")
+    results = sorted(
+        (f for f in host_dir.glob("bench-*.json") if f.stat().st_mtime >= started - 1),
+        key=lambda f: f.stat().st_mtime,
+    )
+    if not results:
+        _fail(f"бенчмарк не записал результат в {host_dir}")
+    result = BenchResult.model_validate_json(results[-1].read_text())
+    _print_bench(result)
+    console.print(f"Результат: {results[-1]}. План мощности: мастер настройки → шаг 6.")
+
+
+def _print_bench(result: BenchResult) -> None:
+    hw = result.hardware
+    gpus = ", ".join(f"{g.name} {g.vram_total_mb // 1024} ГБ" for g in hw.gpus) or "нет GPU"
+    console.print(f"[bold]{result.id}[/]: {hw.cpu_model} ({hw.cpu_cores} ядер), {gpus}")
+    table = Table(title="Декодирование + миниатюра движения")
+    for col in ("Поток", "Где", "Потоков", "Кадров/с", "Разброс"):
+        table.add_column(col)
+    for m in result.decode:
+        table.add_row(
+            f"{m.codec} {m.width}×{m.height}",
+            m.backend.value,
+            str(m.parallel_streams),
+            f"{m.fps_total:.0f}",
+            f"{m.cv:.1%}",
+        )
+    console.print(table)
+    if result.models:
+        mt = Table(title="Модели")
+        for col in ("Модель", "Батч", "p50, мс", "p95, мс", "Изобр/с", "Провайдер"):
+            mt.add_column(col)
+        for mm in result.models:
+            mt.add_row(
+                mm.model,
+                str(mm.batch),
+                f"{mm.latency_p50_ms:.1f}",
+                f"{mm.latency_p95_ms:.1f}",
+                f"{mm.throughput:.0f}",
+                mm.providers[0],
+            )
+        console.print(mt)
+    for v in result.vlm:
+        console.print(
+            f"VLM {v.server} {v.model}: {v.concurrency} одновр. → {v.rps:.2f} запр/с, "
+            f"p95 {v.latency_p95_s:.1f} с, валидный JSON {v.valid_json_ratio:.0%}"
+        )
+    for w in result.warnings:
+        console.print(f"[yellow]•[/] {w}")
 
 
 @app.command("eval")

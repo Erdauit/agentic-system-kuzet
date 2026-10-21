@@ -110,6 +110,12 @@ def decide(
     """Решение по пакету. declared — список заявленных лицензий (все должны выполняться)."""
     shown = " | ".join(declared) if declared else "<не указана>"
     if not declared:
+        # Пакет без метаданных лицензии проходит только по явному ревью с NOASSERTION (SPDX).
+        review = policy.find_review(ecosystem, package, "NOASSERTION")
+        if review is not None:
+            return Decision(
+                ecosystem, package, version, shown, "NOASSERTION", Verdict.REVIEWED, review.reason
+            )
         return Decision(
             ecosystem, package, version, shown, None, Verdict.UNKNOWN, "лицензия не указана"
         )

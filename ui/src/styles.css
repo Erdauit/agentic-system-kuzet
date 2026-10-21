@@ -173,3 +173,17 @@ h3 { font-size: 15px; margin: 16px 0 6px; }
 circle.zone-draft { fill: var(--yellow); }
 .calib { fill: rgba(24, 121, 78, 0.15); stroke: var(--green); }
 .calib-label { font-size: 4px; fill: var(--green); font-weight: 700; }
+
+/* ---- Фаза 3: план мощности */
+.alert.warn { border-color: var(--yellow); color: var(--yellow); }
+.alert ul { margin: 6px 0; }
+.verdict-fits.status { background: var(--green); }
+.verdict-fits_with_limitations.status { background: var(--yellow); }
+.verdict-does_not_fit.status { background: var(--red); }
+.meter { height: 10px; background: var(--border); border-radius: 5px; overflow: hidden; }
+.meter span { display: block; height: 100%; background: var(--green); }
+.meter span.high { background: var(--yellow); }
+.meter span.over { background: var(--red); }
+pre.cmd { background: var(--bg); border: 1px solid var(--border); border-radius: 6px; padding: 6px 10px; display: inline-block; }
+a.button-link { display: inline-block; margin-top: 8px; padding: 6px 14px; border: 1px solid var(--accent); border-radius: 6px; color: var(--accent); text-decoration: none; }
+ul.warnings li { color: var(--yellow); font-size: 14px; }

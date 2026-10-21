@@ -180,6 +180,9 @@ class CameraHealthService:
                 self.detector,
                 gop=gop,
                 frame_sink=sink,
+                # NVDEC — только для камер hot path (декодируется каждый кадр); Camera Health
+                # остальных камер декодирует лишь I-кадры на CPU.
+                hwaccel=self.hotpath.hwaccel if self.hotpath and sink else None,
             )
             cfg = self.config().defaults.camera_health
             self.workers[camera_id] = CameraWorker(

@@ -8,6 +8,11 @@ x-gpu-env: &gpu-env
 
 services:
   vision-pipeline:
+    # Вариант образа с onnxruntime-gpu (TensorRT FP16, CUDA) и NVDEC — Фаза 3.
+    image: qoima/vision-pipeline-gpu:${QOIMA_VERSION:-dev}
+    build:
+      args:
+        VARIANT: gpu
     environment: *gpu-env
     deploy:
       resources:

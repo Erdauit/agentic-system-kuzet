@@ -17,10 +17,12 @@ from shared.schemas import (
     DeliveryStatus,
     EventType,
     FeedbackVerdict,
+    FitVerdict,
     IncidentState,
     ModelSource,
     ModelStatus,
     PermissionLevel,
+    PlanStatus,
     ReasonCode,
     Role,
     RoutingDecision,
@@ -56,6 +58,8 @@ EXPECTED: dict[tuple[str, str], set[str]] = {
     ("alert_deliveries", "stream"): {e.value for e in AlertStream},
     ("alert_deliveries", "channel"): {e.value for e in ChannelKind},
     ("alert_deliveries", "status"): {e.value for e in DeliveryStatus},
+    ("capacity_plans", "status"): {e.value for e in PlanStatus},
+    ("capacity_plans", "verdict"): {e.value for e in FitVerdict},
 }
 
 

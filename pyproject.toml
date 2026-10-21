@@ -3,14 +3,14 @@
 # В Docker-образах каждый сервис ставится отдельно: `uv sync --package <сервис>` (SPEC.md §11).
 [project]
 name = "qoima-vision"
-version = "0.3.0"
+version = "0.4.0"
 description = "Qoima Vision — on-prem система промышленной видеоаналитики (корень workspace)"
 requires-python = ">=3.12"
 dependencies = [
     "qoima-shared[postgres,valkey,media]",
     "qoima-cli",
     "qoima-core-api",
-    "qoima-vision-pipeline",
+    "qoima-vision-pipeline[cpu]",
     "qoima-agents",
     "qoima-workers",
 ]
@@ -30,6 +30,19 @@ dev = [
 
 [tool.uv]
 package = false
+# vision-pipeline ставится либо с onnxruntime (cpu), либо с onnxruntime-gpu (gpu) — не вместе.
+conflicts = [
+    [
+        { package = "qoima-vision-pipeline", extra = "cpu" },
+        { package = "qoima-vision-pipeline", extra = "gpu" },
+    ],
+]
+
+# Индекс NVIDIA — только для пакетов, явно к нему привязанных (TensorRT), остальное — PyPI.
+[[tool.uv.index]]
+name = "nvidia"
+url = "https://pypi.nvidia.com"
+explicit = true
 
 [tool.uv.workspace]
 members = [
@@ -92,7 +105,7 @@ strict = true
 
 # onnxruntime не публикует аннотации типов; используется только в vision_pipeline.inference.runner.
 [[tool.mypy.overrides]]
-module = ["onnxruntime"]
+module = ["onnxruntime", "pynvml", "reportlab", "reportlab.*"]
 ignore_missing_imports = true
 
 [tool.pydantic-mypy]

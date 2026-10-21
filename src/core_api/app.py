@@ -31,6 +31,7 @@ from core_api.cameras.credentials import CredentialStore
 from core_api.cameras.jobs import DiscoveryJobs
 from core_api.cameras.mediamtx import MediaMtxClient
 from core_api.cameras.service import CameraService
+from core_api.capacity.service import CapacityService
 from core_api.context import AppContext
 from core_api.db.migrate import head_revision
 from core_api.incidents.manager import IncidentManager
@@ -39,6 +40,7 @@ from core_api.realtime import Broadcaster
 from core_api.routers import (
     auth,
     cameras,
+    capacity,
     health,
     incidents,
     realtime,
@@ -232,6 +234,9 @@ def create_app(
             delivery=delivery,
             incidents=incident_manager,
             selftest=selftest,
+            capacity=CapacityService(
+                engine, current_config, data_root, camera_service, broadcaster
+            ),
         )
         holder["ctx"] = ctx
         return ctx
@@ -333,6 +338,7 @@ def create_app(
         realtime.router,
         incidents.router,
         zones.router,
+        capacity.router,
     ):
         app.include_router(r)
     app.state.metrics_registry = registry

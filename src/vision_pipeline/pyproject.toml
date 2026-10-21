@@ -1,6 +1,6 @@
 [project]
 name = "qoima-vision-pipeline"
-version = "0.3.0"
+version = "0.4.0"
 description = "vision-pipeline: hot path (декодирование, инференс, трекинг, FSM, Camera Health)"
 requires-python = ">=3.12"
 license = "LicenseRef-Qoima-Proprietary"
@@ -10,13 +10,27 @@ dependencies = [
     "av>=19.0.1,<20",
     # Только imgproc/features2d (ORB для сдвига ракурса). Колесо headless: без Qt.
     "opencv-python-headless>=4.13,<5",
-    # Инференс ONNX: CPU для разработки и CI. На объекте — onnxruntime-gpu с TensorRT EP
-    # (FP16-движок строится на месте, SPEC.md §5.7) — образ GPU-профиля (docs/TODO.md).
-    "onnxruntime>=1.20,<2",
+    # Память GPU для бенчмарка (NVML), BSD-3-Clause. Без драйвера NVIDIA просто недоступна.
+    "nvidia-ml-py>=13,<14",
+    # Бенчмарк VLM: OpenAI-совместимый HTTP API (vLLM/SGLang).
+    "httpx>=0.27,<1",
+]
+
+# Исполнитель ONNX — ровно один из вариантов (оба дают модуль onnxruntime, конфликт объявлен в
+# корне workspace): cpu — разработка, CI и узлы без GPU; gpu — образ GPU-профилей: CUDA 13 +
+# cuDNN 9 + TensorRT 10 (провайдер TensorRT в onnxruntime-gpu 1.31 собран под libnvinfer.so.10,
+# проверено по колесу), FP16-движок строится на месте (SPEC.md §5.7).
+[project.optional-dependencies]
+cpu = ["onnxruntime>=1.31,<2"]
+gpu = [
+    "onnxruntime-gpu[cuda,cudnn]>=1.31,<2; sys_platform == 'linux'",
+    "tensorrt-cu13-libs>=10.16,<11; sys_platform == 'linux'",
 ]
 
 [tool.uv.sources]
 qoima-shared = { workspace = true }
+# Колёса TensorRT публикуются в индексе NVIDIA; на PyPI — только загрузчик-sdist.
+tensorrt-cu13-libs = { index = "nvidia" }
 
 [build-system]
 requires = ["hatchling>=1.27,<2"]

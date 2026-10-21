@@ -12,6 +12,7 @@ from collections.abc import Callable
 from typing import Any
 
 import av
+from av.codec.hwaccel import HWAccel, hwdevices_available
 
 from shared.telemetry import get_logger
 from vision_pipeline.ingest.gop import GopBuffer, StreamInfo
@@ -21,6 +22,22 @@ log = get_logger("stream-reader")
 # Сокет RTSP не блокируется дольше 3 с: поток-читатель успевает заметить остановку и
 # переподключиться, а «нет потока» всё равно определяет оценщик по stream_timeout_s.
 SOCKET_TIMEOUT_US = 3_000_000
+
+
+def hw_decoder(policy: str, gpu_index: int = 0) -> HWAccel | None:
+    """NVDEC для потоков, которые декодируются целиком (hot path), SPEC.md §5.3.
+
+    auto — NVDEC, если FFmpeg видит CUDA (образ GPU + nvidia-container-toolkit), иначе CPU;
+    nvdec без CUDA — предупреждение и CPU; cpu — всегда CPU. Ошибка NVDEC на потоке (кодек не
+    поддерживается картой) — откат на CPU самим FFmpeg (allow_software_fallback).
+    """
+    if policy == "cpu":
+        return None
+    if "cuda" not in hwdevices_available():
+        if policy == "nvdec":
+            log.warning("nvdec_unavailable", reason="FFmpeg не видит CUDA — декодирование на CPU")
+        return None
+    return HWAccel(device_type="cuda", device=str(gpu_index), allow_software_fallback=True)
 
 
 class Clock:
@@ -45,9 +62,11 @@ class StreamReader(threading.Thread):
         url: str,
         backoff: Callable[[], tuple[float, float]],
         gop: GopBuffer | None,
+        hwaccel: HWAccel | None = None,
     ) -> None:
         super().__init__(name=name, daemon=True)
         self.url = url
+        self.hwaccel = hwaccel
         self.backoff = backoff
         self.gop = gop
         self.stop_event = threading.Event()
@@ -82,7 +101,7 @@ class StreamReader(threading.Thread):
 
     def _read_once(self) -> None:
         options = {"rtsp_transport": "tcp", "timeout": str(SOCKET_TIMEOUT_US)}
-        container = av.open(self.url, options=options, timeout=(5.0, 5.0))
+        container = av.open(self.url, options=options, timeout=(5.0, 5.0), hwaccel=self.hwaccel)
         try:
             stream = container.streams.video[0]
             self.clock = Clock()

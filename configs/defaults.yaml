@@ -92,6 +92,7 @@ camera_health:
 
 pipeline:
   backend: lite              # SPEC.md §5.11: сначала lite, deepstream — Фаза 9
+  decode: auto               # SPEC.md §5.3: NVDEC, если FFmpeg видит CUDA; иначе CPU (cpu/nvdec — принудительно)
   substream_max_height: 720  # SPEC.md §5.1: анализ только на substream ≤ 720p
   gop_buffer_seconds: 60     # SPEC.md §5.2: сжатые пакеты последних 60 с в RAM
   # Потолок памяти буфера на поток: 64 МБ ≈ 60 с mainstream 8 Мбит/с. Камера с битрейтом выше
@@ -99,7 +100,8 @@ pipeline:
   gop_max_mb_per_stream: 64
   inference:
     # onnxruntime — разработка и CI (CPU); tensorrt — объект (FP16-движок строится на месте).
-    runtime: onnxruntime
+    # auto: TensorRT FP16 в образе GPU (движок строится на месте, SPEC.md §5.7), иначе CUDA, иначе CPU.
+    runtime: auto
     models_dir: /var/lib/qoima/models/registry   # артефакты моделей (ONNX); манифесты — models/registry/
     person_model: rfdetr-person                  # RF-DETR, Apache-2.0, COCO pretrained (SPEC.md §5.12)
     pose_model: rtmpose-body                     # выбор RTMPose / RF-DETR keypoints — по бенчмарку на клипах
@@ -220,3 +222,46 @@ doctor:
   min_driver_cuda_version: "13.0"
   min_docker_version: "24.0"      # стабильная поддержка `compose up --wait` и GPU-резервирования
   min_compose_version: "2.20"     # --wait/--wait-timeout и include в compose v2
+
+bench:
+  # `qoima bench` (SPEC.md §3.2 шаг 6). Каждый замер повторяется, разброс (CV) идёт в отчёт:
+  # план должен быть воспроизводим, а не держаться на одном удачном прогоне.
+  repeats: 3
+  decode_seconds: 5            # длительность одного прогона декодирования при данном числе потоков
+  decode_sample_seconds: 10    # столько видео записывается с каждой камеры для замера (≥ 2 GOP)
+  max_parallel_decoders: 64    # предел перебора параллельных декодеров (100 камер — это ≥ 64)
+  saturation_gain: 0.05        # прирост < 5% при удвоении потоков — декодер насыщен
+  synthetic_profiles:          # если камер нет: типовые substream (≤ 720p, SPEC.md §5.1) и mainstream
+    - {codec: h264, width: 640, height: 360, fps: 15}
+    - {codec: h264, width: 1280, height: 720, fps: 15}
+    - {codec: h264, width: 1920, height: 1080, fps: 25}
+  model_batches: [1, 2, 4, 8, 16]   # до pipeline.inference.max_batch
+  model_warmup: 5              # прогрев: первые вызовы (сборка движка TensorRT, аллокации) не считаются
+  model_iterations: 30         # достаточно для p95 на 30 точках при CV < 10% (проверяется отчётом)
+  vlm_concurrency: [1, 2, 4, 8]
+  vlm_requests_per_level: 16
+  vlm_timeout_s: 30            # один запрос арбитра дольше 30 с — VLM считается неработоспособным
+
+capacity:
+  # Планировщик мощности (Фаза 3). Значения, помеченные «оценка», заменяются фактическими
+  # данными объекта по мере работы (статистика событий, метрики пайплайна) — docs/ASSUMPTIONS.md.
+  utilization_target: 0.8      # планируем ≤ 80% измеренной ёмкости: запас на всплески и фоновые задачи
+  motion_duty_cycle: 0.5       # оценка: половину времени в кадре есть движение (консервативно для цехов)
+  persons_per_frame: 2         # оценка: средне людей в кадре при анализе позы
+  gray_requests_per_camera_hour: 4   # оценка потока к арбитру, пока нет статистики событий
+  gray_stats_days: 7           # статистика серой зоны — за неделю (неделя покрывает все смены)
+  gray_stats_min_events: 20    # меньше 20 событий — статистике не верим, берём оценку
+  gray_zone_min_width: 0.05    # серая зона не сужается до нуля: арбитр нужен на спорных случаях
+  # Порядок важности сценариев: FPS понижается сначала у последних в списке. Падение и
+  # дым/огонь — critical, опасная зона — high (docs/ASSUMPTIONS.md, п. 39).
+  scenario_priority: [fall, smoke_fire, red_zone]
+  fps_step: 1.0                # шаг понижения FPS при нехватке ёмкости
+  inference_latency_budget_ms: 250   # батч, у которого p95 дольше, не берём: SLO «падение → алерт» ≤ 2 с
+  vlm_min_valid_json_ratio: 0.95     # VLM с > 5% невалидных ответов не считается рабочим на этой нагрузке
+  cuda_context_mb: 500         # контекст CUDA процесса пайплайна (уточняется замером в отчёте)
+  vram_reserve_mb: 2048        # запас VRAM на фрагментацию и пики
+  triton_reserve_mb: 2048      # кастомные модели (Фаза 7); пока Triton пуст — резерв
+  llm_min_mb: 14000            # оценка: Qwen3-VL-8B FP8 ≈ 9 ГБ весов + KV-кэш на несколько запросов (Фаза 4)
+  ram_base_mb: 8192            # оценка: Postgres, Qdrant, Valkey, сервисы Qoima без видеобуфера
+  ram_max_ratio: 0.7           # базовые сервисы + GOP-буферы ≤ 70% ОЗУ: запас ОС и кэшу файлов (клипы)
+

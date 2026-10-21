@@ -4,16 +4,19 @@ import { ApiError, api, patch, post, put } from "../../api/client";
 import { connectRealtime } from "../../api/realtime";
 import type { AddResult, CameraOut, Delivery, DiscoveryJob, HardwareOut, SiteSettings } from "../../api/types";
 import type { MessageKey, T } from "../../i18n";
+import { CapacityBanner } from "../../components/CapacityBanner";
+import { CapacityStep } from "./CapacityStep";
 import { SelfTestStep } from "./SelfTestStep";
 import { ZonesStep } from "./ZonesStep";
 
-type Step = "site" | "hardware" | "cameras" | "zones" | "alerts" | "selftest";
+type Step = "site" | "hardware" | "cameras" | "zones" | "capacity" | "alerts" | "selftest";
 
 const STEPS: { id: Step; title: MessageKey }[] = [
   { id: "site", title: "setup.step1" },
   { id: "hardware", title: "setup.step2" },
   { id: "cameras", title: "setup.step3" },
   { id: "zones", title: "setup.step5" },
+  { id: "capacity", title: "setup.step6" },
   { id: "alerts", title: "setup.step7" },
   { id: "selftest", title: "setup.step8" },
 ];
@@ -95,25 +98,49 @@ function HardwareStep({ t }: { t: T }) {
     api<HardwareOut>("/api/v1/setup/hardware").then(setHw).catch(() => setHw({ report: null }));
   }, []);
   if (!hw) return <p>{t("loading")}</p>;
-  if (!hw.report) return <p className="alert">{hw.message ?? t("hw.none")}</p>;
   return (
     <div className="card">
-      <p>
-        {t("hw.age")}: {hw.report.hostname}, {hw.age_minutes} {t("hw.minAgo")}
-        {hw.stale && <strong className="bad"> ({t("hw.stale")})</strong>}
-      </p>
-      <table className="table">
-        <tbody>
-          {hw.report.outcomes.map((o) => (
-            <tr key={o.name} className={`lvl-${o.level}`}>
-              <td>{o.name}</td>
-              <td>{o.level.toUpperCase()}</td>
-              <td>{o.detail}</td>
-              <td className="muted">{o.recommendation}</td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
+      {hw.verdict && (
+        <p>
+          <span className={`status verdict-${hw.verdict}`}>{t(`cap.verdict.${hw.verdict}` as MessageKey)}</span>{" "}
+          <span className="muted">{hw.bench_id ? `${t("cap.lastBench")}: ${hw.bench_id}` : t("cap.noBench")}</span>
+        </p>
+      )}
+      {hw.items && (
+        <table className="table">
+          <tbody>
+            {hw.items.map((i) => (
+              <tr key={i.name} className={`lvl-${i.level}`}>
+                <td>{i.name}</td>
+                <td>{i.level.toUpperCase()}</td>
+                <td>{i.detail}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
+      {hw.report ? (
+        <details>
+          <summary>
+            {t("hw.age")}: {hw.report.hostname}, {hw.age_minutes} {t("hw.minAgo")}
+            {hw.stale && <strong className="bad"> ({t("hw.stale")})</strong>}
+          </summary>
+          <table className="table">
+            <tbody>
+              {hw.report.outcomes.map((o) => (
+                <tr key={o.name} className={`lvl-${o.level}`}>
+                  <td>{o.name}</td>
+                  <td>{o.level.toUpperCase()}</td>
+                  <td>{o.detail}</td>
+                  <td className="muted">{o.recommendation}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </details>
+      ) : (
+        <p className="alert">{hw.message ?? t("hw.none")}</p>
+      )}
     </div>
   );
 }
@@ -460,10 +487,12 @@ export function SetupPage({ t }: { t: T }) {
         ))}
       </div>
       <p className="muted">{t("setup.later")}</p>
+      {step !== "capacity" && <CapacityBanner t={t} refreshKey={step.length} />}
       {step === "site" && <SiteStep t={t} />}
       {step === "hardware" && <HardwareStep t={t} />}
       {step === "cameras" && <CamerasStep t={t} />}
       {step === "zones" && <ZonesStep t={t} />}
+      {step === "capacity" && <CapacityStep t={t} />}
       {step === "alerts" && <AlertsStep t={t} />}
       {step === "selftest" && <SelfTestStep t={t} />}
     </section>

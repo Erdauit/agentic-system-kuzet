@@ -210,3 +210,9 @@ class CameraRegistryEntry(Contract):
     scenarios: list[ScenarioKind] = Field(default_factory=list)
     zones: list[Zone] = Field(default_factory=list)
     floor: FloorCalibration | None = None
+    analysis_fps: float | None = Field(
+        default=None,
+        gt=0,
+        le=30,
+        description="FPS анализа из применённого плана мощности; None — целевой FPS сценариев",
+    )

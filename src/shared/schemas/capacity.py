@@ -1,6 +1,7 @@
 """План мощности (SPEC.md §3.2 шаг 6, §4.1, §5.10, Фаза 3).
 
-Здесь только контракт и его инварианты; расчёт делает capacity_planner по замерам `qoima bench`.
+Здесь только контракт и его инварианты; расчёт — core_api/capacity/planner.py по замерам
+`qoima bench` (shared.schemas.bench).
 """
 
 from __future__ import annotations
@@ -29,7 +30,7 @@ class CameraAllocation(Contract):
     fps_active: float = Field(gt=0, description="FPS при наличии движения")
     fps_idle: float = Field(gt=0, description="«Сторожевой» FPS без движения")
     target_fps: float = Field(gt=0, description="Целевой FPS сценария из конфига")
-    gpu_index: int = Field(ge=0)
+    gpu_index: int | None = Field(default=None, ge=0, description="None — инференс на CPU")
 
     @model_validator(mode="after")
     def _fps_order(self) -> Self:
@@ -94,6 +95,28 @@ class ThresholdPair(Contract):
         return self
 
 
+class ResourceUse(Contract):
+    """Загрузка ресурса по плану: used/capacity ≤ доли использования из конфига."""
+
+    resource: str = Field(min_length=1, max_length=60)
+    used: float = Field(ge=0)
+    capacity: float = Field(ge=0)
+    unit: str = Field(min_length=1, max_length=20)
+    measured: bool = Field(description="False — ёмкость не измерена (нет замера или модели)")
+
+    @property
+    def ratio(self) -> float:
+        return self.used / self.capacity if self.capacity > 0 else 0.0
+
+
+class PlanStatus(StrEnum):
+    """Жизненный цикл плана: применяет только человек (решение Фазы 3, п. 5)."""
+
+    DRAFT = "draft"
+    ACTIVE = "active"
+    SUPERSEDED = "superseded"
+
+
 class FitVerdict(StrEnum):
     FITS = "fits"
     FITS_WITH_LIMITATIONS = "fits_with_limitations"
@@ -107,22 +130,29 @@ class CapacityPlan(Contract):
         min_length=1, description="Прогон `qoima bench`, на котором основан план"
     )
     backend: Literal["lite", "deepstream"]
-    gpus: list[GPUInfo] = Field(min_length=1)
+    gpus: list[GPUInfo] = Field(default_factory=list, description="Пусто — узел без GPU (CPU)")
     allocations: list[CameraAllocation]
-    vram: list[VramBudget] = Field(min_length=1)
+    vram: list[VramBudget] = Field(default_factory=list)
     vlm: VlmCapacity | None = Field(default=None, description="None — режим без локального VLM")
     llm_gpu_memory_utilization: UnitFloat | None = None
     gray_zone: dict[ScenarioKind, ThresholdPair]
     verdict: FitVerdict
     warnings: list[str] = Field(default_factory=list)
+    utilization: list[ResourceUse] = Field(default_factory=list)
+    inputs_digest: str = Field(
+        pattern=r"^[0-9a-f]{64}$",
+        description="sha256 входных данных: те же замеры, камеры и конфиг → тот же план",
+    )
 
     @model_validator(mode="after")
     def _consistent(self) -> Self:
         gpu_ids = {g.index for g in self.gpus}
         if {v.gpu_index for v in self.vram} != gpu_ids:
             raise ValueError("бюджет VRAM должен быть задан для каждого GPU")
-        if any(a.gpu_index not in gpu_ids for a in self.allocations):
+        if any(a.gpu_index is not None and a.gpu_index not in gpu_ids for a in self.allocations):
             raise ValueError("камера распределена на несуществующий GPU")
+        if not self.gpus and any(a.gpu_index is not None for a in self.allocations):
+            raise ValueError("на узле без GPU камеры распределяются на CPU (gpu_index=None)")
         if (self.vlm is None) != (self.llm_gpu_memory_utilization is None):
             raise ValueError(
                 "llm_gpu_memory_utilization задаётся тогда и только тогда, когда есть VLM"
@@ -131,8 +161,8 @@ class CapacityPlan(Contract):
         if self.vlm is None and llm_mb > 0:
             raise ValueError("без VLM бюджет llm_mb должен быть 0")
         degraded = any(a.degraded for a in self.allocations)
-        if self.verdict is FitVerdict.FITS and (degraded or self.vlm is None):
+        if self.verdict is FitVerdict.FITS and (degraded or self.vlm is None or not self.gpus):
             raise ValueError(
-                "есть пониженный FPS или нет VLM — вердикт должен быть fits_with_limitations"
+                "есть пониженный FPS, нет VLM или нет GPU — вердикт не может быть fits"
             )
         return self

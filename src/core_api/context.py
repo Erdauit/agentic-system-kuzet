@@ -16,6 +16,7 @@ from core_api.alerts.system import SystemAlertManager
 from core_api.auth.service import AuthService
 from core_api.cameras.jobs import DiscoveryJobs
 from core_api.cameras.service import CameraService
+from core_api.capacity.service import CapacityService
 from core_api.incidents.manager import IncidentManager
 from core_api.metrics_query import PrometheusClient
 from core_api.realtime import Broadcaster
@@ -47,6 +48,7 @@ class AppContext:
     delivery: DeliveryService
     incidents: IncidentManager
     selftest: SelfTestService
+    capacity: CapacityService
     camera_names: dict[str, str] = field(default_factory=dict)
 
     def get_config(self) -> QoimaConfig:

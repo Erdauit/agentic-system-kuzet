@@ -14,6 +14,7 @@ from typing import Any
 
 import av
 import numpy as np
+from av.codec.hwaccel import HWAccel
 
 from shared.config.models import CameraHealthConfig
 from vision_pipeline.health.analysis import analyze
@@ -36,12 +37,13 @@ class CameraReader(StreamReader):
         detector: ViewShiftDetector,
         gop: GopBuffer | None = None,
         frame_sink: FrameSink | None = None,
+        hwaccel: HWAccel | None = None,
     ) -> None:
         def backoff() -> tuple[float, float]:
             c = cfg()
             return c.reconnect_backoff_min_s, c.reconnect_backoff_max_s
 
-        super().__init__(f"camera-{camera_id}", url, backoff, gop)
+        super().__init__(f"camera-{camera_id}", url, backoff, gop, hwaccel)
         self.camera_id = camera_id
         self.cfg = cfg
         self.reference = reference

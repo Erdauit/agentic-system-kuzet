@@ -174,6 +174,22 @@ def test_wants_frame_follows_motion_and_idle_fps(config: QoimaConfig) -> None:
     assert sum(moving) >= 4 * fps - 1  # с движением — целевой FPS сценария
 
 
+def test_planned_analysis_fps_is_respected(config: QoimaConfig) -> None:
+    script = Script(lambda t: None)
+    base = entry([ScenarioKind.FALL])
+    an = CameraAnalyzer(
+        base.model_copy(update={"analysis_fps": 6.0}), config, Perception(script, None)
+    )
+    assert an.target_fps == 6.0
+    moving = [
+        an.wants_frame(i / 25, np.roll(np.eye(90, 160, dtype=np.uint8) * 255, i, axis=1))
+        for i in range(100)
+    ]
+    assert 4 * 6 - 1 <= sum(moving) <= 4 * 6 + 1  # 4 с при 6 к/с, а не целевые 8
+    an.configure(base)  # план сняли — снова целевой FPS сценария
+    assert an.target_fps == config.scenarios[ScenarioKind.FALL].target_fps
+
+
 # ---------------------------------------------------------------- сервис hot path
 
 

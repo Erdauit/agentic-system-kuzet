@@ -17,10 +17,11 @@ from core_api.alerts.channels import AlertMessage
 from core_api.api_models import ApiModel, ChannelTestIn, DeliveryOut, SiteIn, TelegramTokenIn
 from core_api.audit import write_audit
 from core_api.auth.deps import AdminUser, CurrentUser
+from core_api.capacity.hardware import hardware_verdict
 from core_api.context import AppContext, get_ctx
 from core_api.doctor_report import load_report, report_age_minutes
 from shared.config import ConfigError
-from shared.schemas import ChannelKind, DoctorReport
+from shared.schemas import ChannelKind, DoctorReport, StreamProbe
 
 router = APIRouter(prefix="/api/v1/setup", tags=["setup"])
 
@@ -110,19 +111,28 @@ async def put_site(body: SiteIn, user: AdminUser, ctx: Ctx) -> SiteIn:
 
 @router.get("/hardware")
 async def hardware(_user: CurrentUser, ctx: Ctx) -> dict[str, Any]:
+    """Итог «подходит / с ограничениями / не подходит» по отчёту doctor и последнему bench."""
     report: DoctorReport | None = load_report(ctx.data_root)
-    if report is None:
-        return {
-            "report": None,
-            "message": "Отчёта нет. На сервере выполните: qoima doctor --report",
-        }
-    age = report_age_minutes(report)
-    return {
-        "report": report.model_dump(mode="json"),
-        "verdict": report.verdict.value,
-        "age_minutes": round(age, 1),
-        "stale": age > ctx.config.defaults.system_alerts.doctor_report_max_age_minutes,
+    bench = await asyncio.to_thread(ctx.capacity.bench)
+    probes = [
+        [StreamProbe.model_validate(p) for p in row.probes or []]
+        for row in await ctx.cameras.list_all()
+        if row.enabled
+    ]
+    verdict, items = hardware_verdict(report, bench, ctx.config, probes)
+    out: dict[str, Any] = {
+        "verdict": verdict.value,
+        "items": [{"name": i.name, "level": i.level, "detail": i.detail} for i in items],
+        "report": report.model_dump(mode="json") if report else None,
+        "bench_id": bench.id if bench else None,
     }
+    if report is not None:
+        age = report_age_minutes(report)
+        out["age_minutes"] = round(age, 1)
+        out["stale"] = age > ctx.config.defaults.system_alerts.doctor_report_max_age_minutes
+    else:
+        out["message"] = "Отчёта нет. На сервере выполните: qoima doctor --report"
+    return out
 
 
 # ---------------------------------------------------------------- шаг 7

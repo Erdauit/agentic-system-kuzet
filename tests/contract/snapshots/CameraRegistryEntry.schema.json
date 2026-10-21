@@ -342,6 +342,21 @@
   "additionalProperties": false,
   "description": "Камера в реестре, который core-api публикует для vision-pipeline (без учётных данных).\n\nПайплайн читает потоки только через MediaMTX (SPEC.md §10): main_path и sub_path — имена путей\nв MediaMTX, а не адреса камер.",
   "properties": {
+    "analysis_fps": {
+      "anyOf": [
+        {
+          "exclusiveMinimum": 0,
+          "maximum": 30,
+          "type": "number"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "FPS анализа из применённого плана мощности; None — целевой FPS сценариев",
+      "title": "Analysis Fps"
+    },
     "baseline": {
       "anyOf": [
         {

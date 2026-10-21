@@ -208,3 +208,17 @@ def test_batcher_propagates_errors() -> None:
     with pytest.raises(RuntimeError, match="модель упала"):
         b.submit(1).result(timeout=1)
     b.close()
+
+
+def test_choose_providers_and_honest_fallback(tmp_path: Path) -> None:
+    from vision_pipeline.inference.runner import CPU, CUDA, TRT, choose_providers
+
+    cache = tmp_path / "engines"
+    assert choose_providers("onnxruntime", {TRT, CUDA, CPU}, cache) == [CPU]
+    auto = choose_providers("auto", {TRT, CUDA, CPU}, cache)
+    assert [p[0] if isinstance(p, tuple) else p for p in auto] == [TRT, CUDA, CPU]
+    trt_opts = auto[0][1]  # type: ignore[index]
+    assert trt_opts["trt_fp16_enable"] is True and trt_opts["trt_engine_cache_path"] == str(cache)
+    assert choose_providers("auto", {CPU}, cache) == [CPU]
+    # Сборка без TensorRT, но с CUDA: auto берёт CUDA, а не делает вид, что есть TensorRT.
+    assert choose_providers("tensorrt", {CUDA, CPU}, cache) == [CUDA, CPU]

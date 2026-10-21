@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 
 import { api, post } from "../../api/client";
 import { connectRealtime } from "../../api/realtime";
+import { CapacityBanner } from "../../components/CapacityBanner";
 import { isAdmin, type CameraOut, type HealthStatus, type SloRow, type SystemAlert, type SystemHealth, type User } from "../../api/types";
 import { LiveView } from "../../components/LiveView";
 import { Sparkline } from "../../components/Sparkline";
@@ -171,6 +172,7 @@ export function HealthPage({ lang, t, user }: { lang: Lang; t: T; user: User }) 
         </ul>
       )}
 
+      <CapacityBanner t={t} />
       <h2>{t("health.slo")}</h2>
       <table className="table">
         <tbody>

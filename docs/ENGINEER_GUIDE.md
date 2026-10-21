@@ -81,6 +81,19 @@ core-api → qoima:pipeline:commands (inject_event: самотест, канар
 - Сообщения потоков, которые 5 раз упали с ошибкой, лежат в `qoima:events:dead` /
   `qoima:event_media:dead`.
 
+## Бенчмарк и план мощности (Фаза 3)
+
+- `qoima bench` → `docker compose run --rm --no-deps vision-pipeline python -m vision_pipeline.bench`
+  (тот же образ и GPU-профиль, что у рабочего пайплайна) → `BenchResult` в `<data>/bench/`.
+  `--quick` — короткий прогон для проверки, `--no-cameras` — только синтетика, `--vlm-url` — VLM.
+- План: `core_api/capacity/planner.py` (чистая функция, `tests/unit/test_planner.py`), хранение и
+  применение — `core_api/capacity/service.py`, API — `/api/v1/capacity/*`.
+- Образ GPU: `docker build -f docker/vision-pipeline.Dockerfile --build-arg VARIANT=gpu ...`
+  (GPU-профили compose делают это сами). Проверки внутри сборки: провайдеры TensorRT/CUDA,
+  `ldd` провайдера TensorRT, лицензионный гейт.
+- Исполнитель и декодер выбираются автоматически (`pipeline.inference.runtime: auto`,
+  `pipeline.decode: auto`); причина отката на CPU — в notes vision-pipeline и в бенчмарке.
+
 ## Тесты
 
 ```bash

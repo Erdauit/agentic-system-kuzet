@@ -1,7 +1,7 @@
 {
   "name": "qoima-ui",
   "private": true,
-  "version": "0.3.0",
+  "version": "0.4.0",
   "description": "Qoima Vision — веб-интерфейс (SPA, раздаётся core-api)",
   "license": "UNLICENSED",
   "type": "module",

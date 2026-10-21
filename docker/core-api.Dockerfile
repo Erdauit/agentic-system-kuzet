@@ -38,7 +38,15 @@ RUN --mount=type=cache,target=/root/.cache/uv \
 # license() верить нельзя: колесо PyPI заявляет LGPL, но содержит libx264/libx265 (GPL).
 RUN /app/.venv/bin/python -c "import av._core as c, sys; conf = c.library_meta['libavcodec']['configuration']; bad = [x for x in ('--enable-gpl', 'libx264', 'libx265', '--enable-nonfree') if x in conf]; sys.exit(f'PyAV собран не с LGPL-FFmpeg media-base: {bad or conf}') if bad or 'qoima-lgpl' not in conf else print('PyAV -> FFmpeg qoima-lgpl')"
 
+# Все модули сервиса импортируются в окружении образа (см. vision-pipeline.Dockerfile).
+RUN /app/.venv/bin/python -c "import pkgutil, importlib, core_api; [importlib.import_module(m.name) for m in pkgutil.walk_packages(core_api.__path__, 'core_api.') if '.migrations.' not in m.name and not m.name.endswith('__main__')]; print('imports ok')"
+
 FROM ${MEDIA_BASE}
+# Шрифт с кириллицей и казахскими буквами для PDF-отчёта плана мощности (DejaVu — свободная
+# лицензия Bitstream Vera + public domain, docs/DATA_LICENSES.md).
+RUN apt-get update \
+ && apt-get install -y --no-install-recommends fonts-dejavu-core \
+ && rm -rf /var/lib/apt/lists/*
 RUN groupadd --system --gid 10001 qoima \
  && useradd --system --uid 10001 --gid qoima --home-dir /app --no-create-home qoima
 COPY --from=builder /app/.venv /app/.venv

@@ -14,6 +14,9 @@ CI проверяет актуальное состояние на каждом 
 | greenlet | MIT AND PSF-2.0 | зависимость SQLAlchemy asyncio; обе лицензии пермиссивные | нужно подтверждение юриста |
 | pathspec | MPL-2.0 | только dev-зависимость mypy, в образы не попадает | нужно подтверждение юриста |
 | numpy | BSD-3-Clause AND 0BSD AND MIT AND Zlib AND CC0-1.0 | numpy и вендорные фрагменты, все пермиссивные | нужно подтверждение юриста |
+| pillow | MIT-CMU | зависимость reportlab (PDF); HPND/MIT-CMU — пермиссивная | нужно подтверждение юриста |
+| reportlab | BSD-3-Clause | лицензия записана текстом — сверено с license.txt пакета, алиас в policy.yaml | разрешено |
+| nvidia-* (CUDA 13, cuDNN 9), tensorrt-cu13-libs | LicenseRef-NVIDIA-Proprietary / LicenseRef-Proprietary | рантайм NVIDIA только в образе vision-pipeline-gpu | нужно подтверждение юриста |
 
 ## Нативные библиотеки внутри колёс и образов
 
@@ -26,6 +29,8 @@ CI проверяет актуальное состояние на каждом 
 | libopenh264 | media-base | BSD-2-Clause | кодировщик нужен только симулятору |
 | PyAV из PyPI (колесо) | **не используется в образах** | заявлено LGPL, но содержит libx264/libx265 (GPL) | в образах PyAV собирается из исходников |
 | onnxruntime 1.31 (колесо, MIT) | vision-pipeline | MIT; внутри статически — protobuf (BSD-3), abseil (Apache-2.0), Eigen (MPL-2.0, заголовочная), flatbuffers (Apache-2.0) и др. по ThirdPartyNotices | нужно подтверждение юриста (MPL-2.0 Eigen, файловый copyleft без модификаций) |
+| CUDA 13 (cuBLAS, NVRTC, runtime, cuFFT, cuRAND, nvJitLink), cuDNN 9, TensorRT 10.16 — колёса NVIDIA | только vision-pipeline-gpu | NVIDIA SLA / CUDA EULA (рантайм с правом распространения в приложениях) | нужно подтверждение юриста; ревью в policy.yaml |
+| DejaVu Sans (fonts-dejavu-core) | core-api (PDF плана мощности) | свободная лицензия Bitstream Vera + public domain | разрешено для встраивания |
 | opencv-python-headless 4.14 | vision-pipeline | Apache-2.0; внутри FFmpeg (LGPL-2.1), OpenSSL 1.1.1, libgfortran (GPL-3.0 WITH GCC-exception-3.1), OpenBLAS (BSD-3), libpng, libvpx/libaom/dav1d (BSD) | нужно подтверждение юриста; OpenSSL 1.1.1 снят с поддержки — заменить при обновлении |
 
 
@@ -68,6 +73,7 @@ CI проверяет актуальное состояние на каждом 
 | python | asyncpg | 0.32.0 | Apache-2.0 | allowed |
 | python | av | 19.0.1 | BSD-3-Clause | allowed |
 | python | certifi | 2026.10.18 | MPL-2.0 | reviewed |
+| python | charset-normalizer | 3.5.2 | MIT | allowed |
 | python | click | 8.5.0 | BSD-3-Clause | allowed |
 | python | fastapi | 0.147.0 | MIT | allowed |
 | python | flatbuffers | 25.12.19 | Apache-2.0 | allowed |
@@ -86,12 +92,14 @@ CI проверяет актуальное состояние на каждом 
 | python | mypy | 1.20.2 | MIT | allowed |
 | python | mypy_extensions | 1.1.0 | MIT | allowed |
 | python | numpy | 2.5.4 | BSD-3-Clause AND 0BSD AND MIT AND Zlib AND CC0-1.0 | reviewed |
+| python | nvidia-ml-py | 13.615.71 | BSD-3-Clause | allowed |
 | python | onnx | 1.23.2 | Apache-2.0 | allowed |
 | python | onnxruntime | 1.31.0 | MIT | allowed |
 | python | opencv-python-headless | 4.14.0.94 | Apache-2.0 | allowed |
 | python | opentelemetry-api | 1.45.1 | Apache-2.0 | allowed |
 | python | packaging | 26.3 | Apache-2.0 OR BSD-2-Clause | allowed |
 | python | pathspec | 1.1.1 | MPL-2.0 | reviewed |
+| python | pillow | 13.0.0 | MIT-CMU | reviewed |
 | python | pluggy | 1.7.0 | MIT | allowed |
 | python | prometheus_client | 0.26.0 | Apache-2.0 AND BSD-2-Clause | allowed |
 | python | protobuf | 7.36.2 | BSD-3-Clause | allowed |
@@ -102,6 +110,7 @@ CI проверяет актуальное состояние на каждом 
 | python | pytest | 9.1.1 | MIT | allowed |
 | python | pytest-asyncio | 1.4.0 | Apache-2.0 | allowed |
 | python | PyYAML | 6.0.3 | MIT | allowed |
+| python | reportlab | 5.0.1 | BSD-3-Clause | allowed |
 | python | rich | 15.0.0 | MIT | allowed |
 | python | ruff | 0.17.1 | MIT | allowed |
 | python | shellingham | 1.5.4 | ISC | allowed |
@@ -115,6 +124,7 @@ CI проверяет актуальное состояние на каждом 
 | python | tzdata | 2026.5 | Apache-2.0 | allowed |
 | python | uvicorn | 0.54.0 | BSD-3-Clause | allowed |
 | python | valkey | 6.2.0 | MIT | allowed |
+| python | websockets | 15.0.1 | BSD-3-Clause | allowed |
 
 ## npm (ui/package-lock.json)
 

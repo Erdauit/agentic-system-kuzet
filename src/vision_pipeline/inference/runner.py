@@ -1,8 +1,8 @@
 """Сессия ONNX Runtime с выбором исполнителя.
 
 - onnxruntime (разработка, CI): CPUExecutionProvider;
-- tensorrt (объект): TensorrtExecutionProvider с FP16 и кэшем движков, затем CUDA и CPU как
-  запасные. Движок строится на целевой машине при первом запуске (SPEC.md §5.7); кэш лежит в
+- auto / tensorrt (объект, образ GPU): TensorrtExecutionProvider с FP16 и кэшем движков, затем
+  CUDA и CPU как запасные; если GPU-провайдеры не стартовали — CPU с причиной в fallback_reason. Движок строится на целевой машине при первом запуске (SPEC.md §5.7); кэш лежит в
   models/engines/<ключ> и привязан к GPU, драйверу и версии TensorRT — при их смене строится заново.
 """
 
@@ -44,6 +44,37 @@ def gpu_key() -> str:
     return f"{slug}-drv{driver}-ort{ort.__version__}"
 
 
+TRT = "TensorrtExecutionProvider"
+CUDA = "CUDAExecutionProvider"
+CPU = "CPUExecutionProvider"
+
+
+def choose_providers(
+    runtime: str, available: set[str], engine_cache: Path | None
+) -> list[str | tuple[str, dict[str, Any]]]:
+    """auto — TensorRT, если он есть в сборке onnxruntime, иначе CUDA, иначе CPU;
+    tensorrt — то же, но без TensorRT это ошибка конфигурации (сообщается в лог и health);
+    onnxruntime — только CPU (разработка, CI)."""
+    if runtime == "onnxruntime":
+        return [CPU]
+    chosen: list[str | tuple[str, dict[str, Any]]] = []
+    if TRT in available and engine_cache is not None:
+        chosen.append(
+            (
+                TRT,
+                {
+                    "trt_fp16_enable": True,
+                    "trt_engine_cache_enable": True,
+                    "trt_engine_cache_path": str(engine_cache),
+                },
+            )
+        )
+    if CUDA in available:
+        chosen.append(CUDA)
+    chosen.append(CPU)
+    return chosen
+
+
 class OnnxModel:
     def __init__(
         self,
@@ -60,30 +91,35 @@ class OnnxModel:
         opts.intra_op_num_threads = threads
         opts.inter_op_num_threads = 1
         opts.graph_optimization_level = ort.GraphOptimizationLevel.ORT_ENABLE_ALL
-        providers: list[Any]
-        if runtime == "tensorrt":
-            if engines_root is None:
-                raise ValueError("для TensorRT нужен каталог кэша движков")
+        available = set(ort.get_available_providers())
+        cache = None
+        if engines_root is not None and runtime != "onnxruntime":
             cache = engine_cache_dir(engines_root, gpu_key, artifact)
             cache.mkdir(parents=True, exist_ok=True)
-            providers = [
-                (
-                    "TensorrtExecutionProvider",
-                    {
-                        "trt_fp16_enable": True,
-                        "trt_engine_cache_enable": True,
-                        "trt_engine_cache_path": str(cache),
-                    },
-                ),
-                "CUDAExecutionProvider",
-                "CPUExecutionProvider",
-            ]
-        else:
-            providers = ["CPUExecutionProvider"]
-        available = set(ort.get_available_providers())
-        chosen = [p for p in providers if (p[0] if isinstance(p, tuple) else p) in available]
-        self.session = ort.InferenceSession(str(artifact.path), sess_options=opts, providers=chosen)
+        chosen = choose_providers(runtime, available, cache)
+        self.fallback_reason: str | None = None
+        if runtime == "tensorrt" and TRT not in available:
+            self.fallback_reason = "в сборке onnxruntime нет TensorRT (нужен образ GPU)"
+        try:
+            self.session = ort.InferenceSession(
+                str(artifact.path), sess_options=opts, providers=chosen
+            )
+        except Exception as exc:  # GPU недоступен (нет драйвера, не та видеокарта) — честно на CPU
+            if chosen == [CPU]:
+                raise
+            self.fallback_reason = f"GPU-провайдеры не запустились: {exc}"[:300]
+            self.session = ort.InferenceSession(
+                str(artifact.path), sess_options=opts, providers=[CPU]
+            )
         self.providers = self.session.get_providers()
+        wanted_gpu = {(c[0] if isinstance(c, tuple) else c) for c in chosen} & {TRT, CUDA}
+        if wanted_gpu and not wanted_gpu & set(self.providers) and self.fallback_reason is None:
+            # onnxruntime молча переходит на CPU, если провайдер не загрузился (нет libcuda, не та
+            # видеокарта) — говорим об этом явно: «Состояние системы» и бенчмарк покажут причину.
+            self.fallback_reason = (
+                "GPU-провайдеры onnxruntime не загрузились (нет драйвера NVIDIA или GPU не "
+                "передан в контейнер) — модель работает на CPU"
+            )
         self.input_name = artifact.runtime.input_name
         self.outputs = artifact.runtime.outputs
         self._lock = threading.Lock()

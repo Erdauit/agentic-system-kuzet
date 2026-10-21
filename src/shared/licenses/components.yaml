@@ -31,6 +31,11 @@ images:
   qoima/vision-pipeline:
     license: LicenseRef-Qoima-Proprietary
     first_party: true
+  qoima/vision-pipeline-gpu:
+    license: LicenseRef-Qoima-Proprietary
+    first_party: true
+    only_in: [compose.gpu1.yml, compose.gpu2.yml]
+    note: "вариант с onnxruntime-gpu: внутри рантайм NVIDIA (CUDA, cuDNN, TensorRT) — ревью в policy.yaml, docs/DATA_LICENSES.md"
   qoima/agents:
     license: LicenseRef-Qoima-Proprietary
     first_party: true

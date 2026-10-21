@@ -55,7 +55,7 @@ from vision_pipeline.hotpath.analyzer import (
 )
 from vision_pipeline.ingest.clip import decode_at, encode_jpeg, write_mp4
 from vision_pipeline.ingest.gop import GopBuffer
-from vision_pipeline.ingest.stream import StreamReader
+from vision_pipeline.ingest.stream import StreamReader, hw_decoder
 from vision_pipeline.router import route
 
 log = get_logger("hot-path")
@@ -171,6 +171,7 @@ class HotPath:
         self.rtsp = rtsp_base.rstrip("/")
         self.perception = perception
         self.cameras: dict[str, CameraPipeline] = {}
+        self.hwaccel = hw_decoder(config().defaults.pipeline.decode)
         self.pool = ThreadPoolExecutor(max_workers=2, thread_name_prefix="clip")
         self.loop: asyncio.AbstractEventLoop | None = None
         self.outbox: asyncio.Queue[tuple[str, Any]] | None = None
@@ -193,6 +194,8 @@ class HotPath:
     @property
     def capabilities(self) -> list[str]:
         caps = ["gop_buffer", "clips", "selftest_events"]
+        if self.hwaccel is not None:
+            caps.append("nvdec")
         scen = available_scenarios(self.perception)
         if self.perception.detect is not None:
             caps.append("person_detection")

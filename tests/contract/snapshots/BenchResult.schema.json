@@ -1,0 +1,485 @@
+{
+  "$defs": {
+    "DecodeBackend": {
+      "enum": [
+        "nvdec",
+        "cpu"
+      ],
+      "title": "DecodeBackend",
+      "type": "string"
+    },
+    "DecodeMeasurement": {
+      "additionalProperties": false,
+      "description": "Сколько кадров в секунду этот узел декодирует и уменьшает до миниатюры детектора\nдвижения — то, что hot path делает с каждым кадром потока анализа.",
+      "properties": {
+        "backend": {
+          "$ref": "#/$defs/DecodeBackend"
+        },
+        "camera_ids": {
+          "items": {
+            "pattern": "^[a-z0-9][a-z0-9_\\-]{0,63}$",
+            "type": "string"
+          },
+          "title": "Camera Ids",
+          "type": "array"
+        },
+        "codec": {
+          "maxLength": 20,
+          "minLength": 1,
+          "title": "Codec",
+          "type": "string"
+        },
+        "cv": {
+          "description": "Коэффициент вариации между повторами",
+          "minimum": 0,
+          "title": "Cv",
+          "type": "number"
+        },
+        "fps_total": {
+          "description": "Кадров/с суммарно на пике",
+          "exclusiveMinimum": 0,
+          "title": "Fps Total",
+          "type": "number"
+        },
+        "gpu_index": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Gpu Index"
+        },
+        "height": {
+          "exclusiveMinimum": 0,
+          "title": "Height",
+          "type": "integer"
+        },
+        "parallel_streams": {
+          "description": "Число параллельных декодеров на пике",
+          "exclusiveMinimum": 0,
+          "title": "Parallel Streams",
+          "type": "integer"
+        },
+        "source": {
+          "enum": [
+            "camera",
+            "synthetic"
+          ],
+          "title": "Source",
+          "type": "string"
+        },
+        "source_fps": {
+          "exclusiveMinimum": 0,
+          "title": "Source Fps",
+          "type": "number"
+        },
+        "vram_per_stream_mb": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Vram Per Stream Mb"
+        },
+        "width": {
+          "exclusiveMinimum": 0,
+          "title": "Width",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "codec",
+        "width",
+        "height",
+        "source_fps",
+        "backend",
+        "parallel_streams",
+        "fps_total",
+        "cv",
+        "source"
+      ],
+      "title": "DecodeMeasurement",
+      "type": "object"
+    },
+    "GPUInfo": {
+      "additionalProperties": false,
+      "properties": {
+        "cuda_version": {
+          "minLength": 1,
+          "title": "Cuda Version",
+          "type": "string"
+        },
+        "driver_version": {
+          "minLength": 1,
+          "title": "Driver Version",
+          "type": "string"
+        },
+        "index": {
+          "minimum": 0,
+          "title": "Index",
+          "type": "integer"
+        },
+        "name": {
+          "minLength": 1,
+          "title": "Name",
+          "type": "string"
+        },
+        "nvdec_available": {
+          "title": "Nvdec Available",
+          "type": "boolean"
+        },
+        "vram_total_mb": {
+          "exclusiveMinimum": 0,
+          "title": "Vram Total Mb",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "index",
+        "name",
+        "vram_total_mb",
+        "nvdec_available",
+        "driver_version",
+        "cuda_version"
+      ],
+      "title": "GPUInfo",
+      "type": "object"
+    },
+    "HardwareFingerprint": {
+      "additionalProperties": false,
+      "description": "Что измерялось: при смене GPU, драйвера или версий библиотек план нужно пересчитать.",
+      "properties": {
+        "cpu_cores": {
+          "description": "Логических ядер",
+          "exclusiveMinimum": 0,
+          "title": "Cpu Cores",
+          "type": "integer"
+        },
+        "cpu_model": {
+          "maxLength": 200,
+          "minLength": 1,
+          "title": "Cpu Model",
+          "type": "string"
+        },
+        "gpus": {
+          "items": {
+            "$ref": "#/$defs/GPUInfo"
+          },
+          "title": "Gpus",
+          "type": "array"
+        },
+        "hostname": {
+          "maxLength": 255,
+          "minLength": 1,
+          "title": "Hostname",
+          "type": "string"
+        },
+        "libavcodec": {
+          "description": "Версия FFmpeg (libavcodec)",
+          "minLength": 1,
+          "title": "Libavcodec",
+          "type": "string"
+        },
+        "onnxruntime": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Onnxruntime"
+        },
+        "pipeline_version": {
+          "minLength": 1,
+          "title": "Pipeline Version",
+          "type": "string"
+        },
+        "providers": {
+          "description": "Доступные провайдеры ORT",
+          "items": {
+            "type": "string"
+          },
+          "title": "Providers",
+          "type": "array"
+        },
+        "ram_total_mb": {
+          "exclusiveMinimum": 0,
+          "title": "Ram Total Mb",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "hostname",
+        "cpu_model",
+        "cpu_cores",
+        "ram_total_mb",
+        "libavcodec",
+        "pipeline_version"
+      ],
+      "title": "HardwareFingerprint",
+      "type": "object"
+    },
+    "LiveLoad": {
+      "additionalProperties": false,
+      "description": "Нагрузка работающего hot path во время замера: бенчмарк его не останавливает, поэтому\nплан считает измеренную ёмкость с поправкой на неё (решение Фазы 3, п. 3).",
+      "properties": {
+        "cameras": {
+          "minimum": 0,
+          "title": "Cameras",
+          "type": "integer"
+        },
+        "decoded_fps": {
+          "minimum": 0,
+          "title": "Decoded Fps",
+          "type": "number"
+        },
+        "inferred_fps": {
+          "minimum": 0,
+          "title": "Inferred Fps",
+          "type": "number"
+        }
+      },
+      "required": [
+        "cameras",
+        "decoded_fps",
+        "inferred_fps"
+      ],
+      "title": "LiveLoad",
+      "type": "object"
+    },
+    "ModelMeasurement": {
+      "additionalProperties": false,
+      "properties": {
+        "batch": {
+          "exclusiveMinimum": 0,
+          "title": "Batch",
+          "type": "integer"
+        },
+        "cv": {
+          "minimum": 0,
+          "title": "Cv",
+          "type": "number"
+        },
+        "latency_p50_ms": {
+          "exclusiveMinimum": 0,
+          "title": "Latency P50 Ms",
+          "type": "number"
+        },
+        "latency_p95_ms": {
+          "exclusiveMinimum": 0,
+          "title": "Latency P95 Ms",
+          "type": "number"
+        },
+        "model": {
+          "maxLength": 64,
+          "minLength": 1,
+          "title": "Model",
+          "type": "string"
+        },
+        "providers": {
+          "description": "Провайдеры, реально выбранные сессией",
+          "items": {
+            "type": "string"
+          },
+          "minItems": 1,
+          "title": "Providers",
+          "type": "array"
+        },
+        "runtime": {
+          "enum": [
+            "onnxruntime",
+            "tensorrt"
+          ],
+          "title": "Runtime",
+          "type": "string"
+        },
+        "throughput": {
+          "description": "Изображений (кропов) в секунду",
+          "exclusiveMinimum": 0,
+          "title": "Throughput",
+          "type": "number"
+        },
+        "version": {
+          "maxLength": 120,
+          "minLength": 1,
+          "title": "Version",
+          "type": "string"
+        },
+        "vram_mb": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Vram Mb"
+        }
+      },
+      "required": [
+        "model",
+        "version",
+        "runtime",
+        "providers",
+        "batch",
+        "latency_p50_ms",
+        "latency_p95_ms",
+        "throughput",
+        "cv"
+      ],
+      "title": "ModelMeasurement",
+      "type": "object"
+    },
+    "VlmMeasurement": {
+      "additionalProperties": false,
+      "properties": {
+        "concurrency": {
+          "exclusiveMinimum": 0,
+          "title": "Concurrency",
+          "type": "integer"
+        },
+        "latency_p50_s": {
+          "minimum": 0,
+          "title": "Latency P50 S",
+          "type": "number"
+        },
+        "latency_p95_s": {
+          "minimum": 0,
+          "title": "Latency P95 S",
+          "type": "number"
+        },
+        "model": {
+          "maxLength": 200,
+          "minLength": 1,
+          "title": "Model",
+          "type": "string"
+        },
+        "requests": {
+          "exclusiveMinimum": 0,
+          "title": "Requests",
+          "type": "integer"
+        },
+        "rps": {
+          "minimum": 0,
+          "title": "Rps",
+          "type": "number"
+        },
+        "server": {
+          "description": "vllm | sglang | unknown",
+          "maxLength": 40,
+          "minLength": 1,
+          "title": "Server",
+          "type": "string"
+        },
+        "valid_json_ratio": {
+          "maximum": 1.0,
+          "minimum": 0.0,
+          "title": "Valid Json Ratio",
+          "type": "number"
+        }
+      },
+      "required": [
+        "server",
+        "model",
+        "concurrency",
+        "requests",
+        "rps",
+        "latency_p50_s",
+        "latency_p95_s",
+        "valid_json_ratio"
+      ],
+      "title": "VlmMeasurement",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "decode": {
+      "items": {
+        "$ref": "#/$defs/DecodeMeasurement"
+      },
+      "title": "Decode",
+      "type": "array"
+    },
+    "finished_at": {
+      "format": "date-time",
+      "title": "Finished At",
+      "type": "string"
+    },
+    "hardware": {
+      "$ref": "#/$defs/HardwareFingerprint"
+    },
+    "id": {
+      "pattern": "^bench-\\d{8}-\\d{6}$",
+      "title": "Id",
+      "type": "string"
+    },
+    "live_load": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/LiveLoad"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "models": {
+      "items": {
+        "$ref": "#/$defs/ModelMeasurement"
+      },
+      "title": "Models",
+      "type": "array"
+    },
+    "repeats": {
+      "exclusiveMinimum": 0,
+      "title": "Repeats",
+      "type": "integer"
+    },
+    "started_at": {
+      "format": "date-time",
+      "title": "Started At",
+      "type": "string"
+    },
+    "vlm": {
+      "items": {
+        "$ref": "#/$defs/VlmMeasurement"
+      },
+      "title": "Vlm",
+      "type": "array"
+    },
+    "warnings": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Warnings",
+      "type": "array"
+    }
+  },
+  "required": [
+    "id",
+    "started_at",
+    "finished_at",
+    "hardware",
+    "repeats"
+  ],
+  "title": "BenchResult",
+  "type": "object"
+}

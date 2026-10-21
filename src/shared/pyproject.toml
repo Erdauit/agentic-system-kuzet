@@ -1,6 +1,6 @@
 [project]
 name = "qoima-shared"
-version = "0.3.0"
+version = "0.4.0"
 description = "Общие контракты, конфиги, хранилища, телеметрия и лицензионная политика Qoima Vision"
 requires-python = ">=3.12"
 license = "LicenseRef-Qoima-Proprietary"

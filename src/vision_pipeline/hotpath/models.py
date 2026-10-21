@@ -52,7 +52,7 @@ def load_models(
     pipe = config.defaults.pipeline
     inf = pipe.inference
     notes: list[str] = []
-    key = gpu_key() if inf.runtime == "tensorrt" else "cpu"
+    key = gpu_key() if inf.runtime != "onnxruntime" else "cpu"
     latency = _histogram("inference_latency_seconds", registry)
     batch_size = _histogram("batch_size", registry)
     try:
@@ -66,7 +66,9 @@ def load_models(
         notes.append(f"детектор людей не загружен: {exc}")
         log.warning("person_model_unavailable", error=str(exc))
         return LoadedModels(Perception(None, None), notes)
-    log.info("person_model_loaded", version=detector.version)
+    log.info("person_model_loaded", version=detector.version, providers=detector.model.providers)
+    if detector.model.fallback_reason:
+        notes.append(f"детектор людей на CPU: {detector.model.fallback_reason}")
 
     def on_batch(n: int, seconds: float) -> None:
         batch_size.labels(model=inf.person_model).observe(n)

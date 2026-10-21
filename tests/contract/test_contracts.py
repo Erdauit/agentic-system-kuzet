@@ -208,8 +208,23 @@ def test_capacity_vlm_load_limit() -> None:
 
 
 def test_capacity_degraded_cannot_claim_fits() -> None:
-    with pytest.raises(ValidationError, match="fits_with_limitations"):
+    with pytest.raises(ValidationError, match="не может быть fits"):
         CapacityPlan.model_validate(_example("CapacityPlan", verdict="fits"))
+
+
+def test_capacity_cpu_node_plan() -> None:
+    """Узел без GPU: план допустим (разработка), но камеры — на CPU и вердикт не «fits»."""
+    plan = _example("CapacityPlan", gpus=[], vram=[], vlm=None, llm_gpu_memory_utilization=None)
+    for a in plan["allocations"]:
+        a["gpu_index"] = None
+    assert CapacityPlan.model_validate(plan).verdict.value == "fits_with_limitations"
+    plan["allocations"][0]["gpu_index"] = 0
+    with pytest.raises(ValidationError, match="несуществующий GPU"):
+        CapacityPlan.model_validate(plan)
+    plan["allocations"][0]["gpu_index"] = None
+    plan["allocations"] = [a | {"fps_active": a["target_fps"]} for a in plan["allocations"]]
+    with pytest.raises(ValidationError, match="не может быть fits"):
+        CapacityPlan.model_validate(plan | {"verdict": "fits"})
 
 
 def test_trained_model_needs_golden_set_for_shadow() -> None:

@@ -80,7 +80,9 @@ def test_base_services_have_healthchecks() -> None:
     gpu = yaml.safe_load((COMPOSE_DIR / "compose.gpu1.yml").read_text())
     for name, svc in {
         **base["services"],
-        **{k: v for k, v in gpu["services"].items() if "image" in v},
+        # Новые сервисы GPU-профиля; переопределения базовых (образ vision-pipeline-gpu)
+        # наследуют healthcheck базового файла.
+        **{k: v for k, v in gpu["services"].items() if "image" in v and k not in base["services"]},
     }.items():
         if "build" in svc.get("profiles", []):
             continue  # media-base: только источник для сборки, не запускается

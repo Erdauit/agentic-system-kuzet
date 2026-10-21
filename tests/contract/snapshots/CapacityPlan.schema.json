@@ -21,9 +21,18 @@
           "type": "number"
         },
         "gpu_index": {
-          "minimum": 0,
-          "title": "Gpu Index",
-          "type": "integer"
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "None — инференс на CPU",
+          "title": "Gpu Index"
         },
         "scenario": {
           "$ref": "#/$defs/ScenarioKind"
@@ -40,8 +49,7 @@
         "scenario",
         "fps_active",
         "fps_idle",
-        "target_fps",
-        "gpu_index"
+        "target_fps"
       ],
       "title": "CameraAllocation",
       "type": "object"
@@ -97,6 +105,48 @@
         "cuda_version"
       ],
       "title": "GPUInfo",
+      "type": "object"
+    },
+    "ResourceUse": {
+      "additionalProperties": false,
+      "description": "Загрузка ресурса по плану: used/capacity ≤ доли использования из конфига.",
+      "properties": {
+        "capacity": {
+          "minimum": 0,
+          "title": "Capacity",
+          "type": "number"
+        },
+        "measured": {
+          "description": "False — ёмкость не измерена (нет замера или модели)",
+          "title": "Measured",
+          "type": "boolean"
+        },
+        "resource": {
+          "maxLength": 60,
+          "minLength": 1,
+          "title": "Resource",
+          "type": "string"
+        },
+        "unit": {
+          "maxLength": 20,
+          "minLength": 1,
+          "title": "Unit",
+          "type": "string"
+        },
+        "used": {
+          "minimum": 0,
+          "title": "Used",
+          "type": "number"
+        }
+      },
+      "required": [
+        "resource",
+        "used",
+        "capacity",
+        "unit",
+        "measured"
+      ],
+      "title": "ResourceUse",
       "type": "object"
     },
     "ScenarioKind": {
@@ -244,10 +294,10 @@
       "type": "string"
     },
     "gpus": {
+      "description": "Пусто — узел без GPU (CPU)",
       "items": {
         "$ref": "#/$defs/GPUInfo"
       },
-      "minItems": 1,
       "title": "Gpus",
       "type": "array"
     },
@@ -266,6 +316,12 @@
       "title": "Id",
       "type": "string"
     },
+    "inputs_digest": {
+      "description": "sha256 входных данных: те же замеры, камеры и конфиг → тот же план",
+      "pattern": "^[0-9a-f]{64}$",
+      "title": "Inputs Digest",
+      "type": "string"
+    },
     "llm_gpu_memory_utilization": {
       "anyOf": [
         {
@@ -279,6 +335,13 @@
       ],
       "default": null,
       "title": "Llm Gpu Memory Utilization"
+    },
+    "utilization": {
+      "items": {
+        "$ref": "#/$defs/ResourceUse"
+      },
+      "title": "Utilization",
+      "type": "array"
     },
     "verdict": {
       "$ref": "#/$defs/FitVerdict"
@@ -299,7 +362,6 @@
       "items": {
         "$ref": "#/$defs/VramBudget"
       },
-      "minItems": 1,
       "title": "Vram",
       "type": "array"
     },
@@ -316,11 +378,10 @@
     "created_at",
     "benchmark_id",
     "backend",
-    "gpus",
     "allocations",
-    "vram",
     "gray_zone",
-    "verdict"
+    "verdict",
+    "inputs_digest"
   ],
   "title": "CapacityPlan",
   "type": "object"
