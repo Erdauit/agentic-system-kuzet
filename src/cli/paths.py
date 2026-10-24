@@ -24,6 +24,7 @@ DATA_DIRS: dict[str, tuple[int, int]] = {
     "models/triton": (10001, 10001),
     "config": (10001, 10001),
     "doctor": (10001, 10001),
+    "bench": (10001, 10001),
     "postgres": (999, 999),
     "valkey": (999, 999),
     "qdrant": (0, 0),

@@ -106,7 +106,8 @@ def parse_gpus(csv_output: str) -> list[Gpu]:
 
 
 def parse_cuda_version(nvidia_smi_header: str) -> str | None:
-    m = re.search(r"CUDA Version:\s*([\d.]+)", nvidia_smi_header)
+    # Драйвер 610 в WSL пишет CUDA UMD Version; прежние драйверы — CUDA Version.
+    m = re.search(r"CUDA (?:UMD )?Version:\s*([\d.]+)", nvidia_smi_header)
     return m.group(1) if m else None
 
 

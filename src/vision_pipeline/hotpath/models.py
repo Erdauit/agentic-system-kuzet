@@ -58,7 +58,7 @@ def load_models(
     try:
         art = load_artifact(inf.models_dir, inf.person_model)
         detector = PersonDetector(
-            OnnxModel(art, inf.runtime, inf.threads, engines_root, key),
+            OnnxModel(art, inf.runtime, inf.threads, engines_root, key, gpu_memory=inf.gpu_memory),
             "person",
             inf.person_score_min,
         )
@@ -86,7 +86,11 @@ def load_models(
     if inf.pose_model:
         try:
             pose_art = load_artifact(inf.models_dir, inf.pose_model)
-            pose = PoseEstimator(OnnxModel(pose_art, inf.runtime, inf.threads, engines_root, key))
+            pose = PoseEstimator(
+                OnnxModel(
+                    pose_art, inf.runtime, inf.threads, engines_root, key, gpu_memory=inf.gpu_memory
+                )
+            )
             pose_version = pose.version
             pose_name = inf.pose_model
 

@@ -89,7 +89,7 @@ def _status(api: httpx.Client, camera_id: str) -> dict[str, Any]:
 
 
 def _sim_index(camera: dict[str, Any]) -> int:
-    """Номер контейнера симулятора по IP камеры."""
+    """Номер контейнера симулятора по IP камеры или постоянному Docker DNS-имени."""
     host = camera["camera"]["main_url"].split("//", 1)[1].split(":", 1)[0]
     for n in range(1, CAMERAS + 1):
         out = subprocess.run(
@@ -104,7 +104,7 @@ def _sim_index(camera: dict[str, Any]) -> int:
             text=True,
             check=True,
         ).stdout.split()
-        if host in out:
+        if host in out or host == f"qoima-camera-sim-{n}":
             return n
     raise AssertionError(f"контейнер симулятора для {host} не найден")
 

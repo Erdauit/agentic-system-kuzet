@@ -17,11 +17,22 @@ from typing import Any
 import numpy as np
 from numpy.typing import NDArray
 
+from shared.config.models import GpuMemoryConfig
 from vision_pipeline.inference.registry import ModelArtifact
 
 
-def engine_cache_dir(engines_root: Path, gpu_key: str, artifact: ModelArtifact) -> Path:
-    return engines_root / gpu_key / artifact.version
+def engine_cache_dir(
+    engines_root: Path,
+    gpu_key: str,
+    artifact: ModelArtifact,
+    gpu_memory: GpuMemoryConfig | None = None,
+) -> Path:
+    path = engines_root / gpu_key / artifact.version
+    if gpu_memory is not None and gpu_memory.trt_workspace_mb is not None:
+        # Старый движок мог выбрать тактики с большей рабочей областью. Новый лимит требует
+        # новой сборки, а не загрузки движка, собранного с другим бюджетом.
+        path /= f"workspace-{gpu_memory.trt_workspace_mb}mb"
+    return path
 
 
 def gpu_key() -> str:
@@ -50,27 +61,34 @@ CPU = "CPUExecutionProvider"
 
 
 def choose_providers(
-    runtime: str, available: set[str], engine_cache: Path | None
+    runtime: str,
+    available: set[str],
+    engine_cache: Path | None,
+    gpu_memory: GpuMemoryConfig | None = None,
 ) -> list[str | tuple[str, dict[str, Any]]]:
     """auto — TensorRT, если он есть в сборке onnxruntime, иначе CUDA, иначе CPU;
     tensorrt — то же, но без TensorRT это ошибка конфигурации (сообщается в лог и health);
     onnxruntime — только CPU (разработка, CI)."""
     if runtime == "onnxruntime":
         return [CPU]
+    memory = gpu_memory or GpuMemoryConfig()
     chosen: list[str | tuple[str, dict[str, Any]]] = []
     if TRT in available and engine_cache is not None:
-        chosen.append(
-            (
-                TRT,
-                {
-                    "trt_fp16_enable": True,
-                    "trt_engine_cache_enable": True,
-                    "trt_engine_cache_path": str(engine_cache),
-                },
-            )
-        )
+        trt_options: dict[str, Any] = {
+            "trt_fp16_enable": True,
+            "trt_engine_cache_enable": True,
+            "trt_engine_cache_path": str(engine_cache),
+        }
+        if memory.trt_workspace_mb is not None:
+            trt_options["trt_max_workspace_size"] = memory.trt_workspace_mb * 1024**2
+        chosen.append((TRT, trt_options))
     if CUDA in available:
-        chosen.append(CUDA)
+        cuda_options: dict[str, Any] = {
+            "arena_extend_strategy": memory.cuda_arena_extend_strategy,
+        }
+        if memory.cuda_arena_limit_mb is not None:
+            cuda_options["gpu_mem_limit"] = memory.cuda_arena_limit_mb * 1024**2
+        chosen.append((CUDA, cuda_options))
     chosen.append(CPU)
     return chosen
 
@@ -83,6 +101,8 @@ class OnnxModel:
         threads: int,
         engines_root: Path | None = None,
         gpu_key: str = "cpu",
+        *,
+        gpu_memory: GpuMemoryConfig | None = None,
     ) -> None:
         import onnxruntime as ort
 
@@ -94,9 +114,9 @@ class OnnxModel:
         available = set(ort.get_available_providers())
         cache = None
         if engines_root is not None and runtime != "onnxruntime":
-            cache = engine_cache_dir(engines_root, gpu_key, artifact)
+            cache = engine_cache_dir(engines_root, gpu_key, artifact, gpu_memory)
             cache.mkdir(parents=True, exist_ok=True)
-        chosen = choose_providers(runtime, available, cache)
+        chosen = choose_providers(runtime, available, cache, gpu_memory)
         self.fallback_reason: str | None = None
         if runtime == "tensorrt" and TRT not in available:
             self.fallback_reason = "в сборке onnxruntime нет TensorRT (нужен образ GPU)"

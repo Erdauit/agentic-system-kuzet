@@ -70,6 +70,26 @@ def test_nvidia_missing_driver(config: QoimaConfig) -> None:
     assert "драйвер" in outcomes[0].recommendation.lower()
 
 
+@pytest.mark.parametrize(
+    "cuda, expected", [("13.3", Level.OK), ("12.8", Level.FAIL), ("N/A", Level.WARN)]
+)
+def test_nvidia_wsl_umd_header(
+    config: QoimaConfig, cuda: str, expected: Level, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # Реальный формат WSL / драйвер 610.88; старый CUDA Version проверяется выше.
+    monkeypatch.setattr("cli.doctor.nvidia_smi", lambda: "nvidia-smi")
+    runner = fake_runner(
+        {
+            GPU_QUERY: ok("0, NVIDIA GeForce RTX 5070 Ti, 610.88, 16303\n"),
+            "nvidia-smi": ok(
+                f"| NVIDIA-SMI 610.57.01 KMD Version: 610.88 CUDA UMD Version: {cuda} |"
+            ),
+        }
+    )
+    outcomes, _ = check_nvidia(runner, config)
+    assert next(o.level for o in outcomes if o.name == "CUDA (драйвер)") is expected
+
+
 def test_old_cuda_and_small_vram(config: QoimaConfig) -> None:
     runner = fake_runner(
         {

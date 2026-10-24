@@ -192,6 +192,7 @@ make_dir models 10001:10001
 make_dir models/triton 10001:10001
 make_dir config 10001:10001
 make_dir doctor 10001:10001
+make_dir bench 10001:10001
 make_dir postgres 999:999
 make_dir valkey 999:999
 make_dir qdrant 0:0

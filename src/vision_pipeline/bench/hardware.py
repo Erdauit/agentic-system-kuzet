@@ -33,7 +33,7 @@ def gpus() -> list[GPUInfo]:
     if not rows:
         return []
     header = _nvidia_smi() or ""
-    m = re.search(r"CUDA Version:\s*([\d.]+)", header)
+    m = re.search(r"CUDA (?:UMD )?Version:\s*([\d.]+)", header)
     cuda = m.group(1) if m else "unknown"
     nvdec = nvdec_available()
     out = []

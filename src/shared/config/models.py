@@ -122,6 +122,14 @@ class BatchingConfig(Section):
     max_queue_delay_ms: Annotated[float, Field(gt=0, le=20)]  # SPEC.md §5.6: ≤ 20 мс
 
 
+class GpuMemoryConfig(Section):
+    """Лимиты на одну ORT-сессию; общий расход GPU проверяется отдельным замером."""
+
+    cuda_arena_limit_mb: PositiveInt | None = None
+    cuda_arena_extend_strategy: Literal["kSameAsRequested", "kNextPowerOfTwo"] = "kSameAsRequested"
+    trt_workspace_mb: PositiveInt | None = None
+
+
 class InferenceConfig(Section):
     runtime: Literal["auto", "onnxruntime", "tensorrt"]
     models_dir: Path
@@ -132,6 +140,7 @@ class InferenceConfig(Section):
     max_batch: Annotated[int, Field(ge=1, le=64)]
     threads: Annotated[int, Field(ge=1, le=64)]
     timeout_s: PositiveFloat
+    gpu_memory: GpuMemoryConfig = Field(default_factory=GpuMemoryConfig)
 
 
 class TrackerConfig(Section):
@@ -277,6 +286,7 @@ class BenchConfig(Section):
     model_batches: list[Annotated[int, Field(ge=1, le=64)]] = Field(min_length=1)
     model_warmup: Annotated[int, Field(ge=0)]
     model_iterations: Annotated[int, Field(ge=3)]
+    vram_sample_interval_s: Annotated[float, Field(gt=0, allow_inf_nan=False)] = 0.01
     vlm_concurrency: list[Annotated[int, Field(ge=1, le=64)]] = Field(min_length=1)
     vlm_requests_per_level: Annotated[int, Field(ge=1)]
     vlm_timeout_s: PositiveFloat

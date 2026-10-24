@@ -18,6 +18,7 @@ import argparse
 import hashlib
 import shutil
 from datetime import UTC, datetime
+from importlib import metadata
 from pathlib import Path
 
 import yaml
@@ -40,6 +41,7 @@ def main() -> int:
 
     import rfdetr  # тяжёлые зависимости только здесь
 
+    package_version = metadata.version("rfdetr")  # rfdetr 1.11.2 не экспортирует __version__
     cls_name, resolution = SIZES[args.size]
     model = getattr(rfdetr, cls_name)()
     work = args.out / f".export-{args.name}"
@@ -55,7 +57,7 @@ def main() -> int:
     digest = hashlib.sha256((target / "model.onnx").read_bytes()).hexdigest()
     manifest = {
         "name": args.name,
-        "version": f"{rfdetr.__version__}+{args.size}",
+        "version": f"{package_version}+{args.size}",
         "task_type": "detection",
         "framework": "rf-detr",
         "license": "Apache-2.0",

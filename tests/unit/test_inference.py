@@ -221,4 +221,7 @@ def test_choose_providers_and_honest_fallback(tmp_path: Path) -> None:
     assert trt_opts["trt_fp16_enable"] is True and trt_opts["trt_engine_cache_path"] == str(cache)
     assert choose_providers("auto", {CPU}, cache) == [CPU]
     # Сборка без TensorRT, но с CUDA: auto берёт CUDA, а не делает вид, что есть TensorRT.
-    assert choose_providers("tensorrt", {CUDA, CPU}, cache) == [CUDA, CPU]
+    assert choose_providers("tensorrt", {CUDA, CPU}, cache) == [
+        (CUDA, {"arena_extend_strategy": "kSameAsRequested"}),
+        CPU,
+    ]

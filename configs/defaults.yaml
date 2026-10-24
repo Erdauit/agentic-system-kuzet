@@ -99,6 +99,15 @@ pipeline:
   # хранит меньше 60 с (в UI и логе — предупреждение), но память сервера не кончится.
   gop_max_mb_per_stream: 64
   inference:
+    gpu_memory:
+      # Лимиты на ОДНУ сессию модели, в МиБ. null — ещё не измерены на целевом GPU;
+      # после приёмки задать в site.yaml. Не подменяем измерения оценкой для 16 ГБ.
+      cuda_arena_limit_mb: null
+      # Рост ровно на запрос: арена не резервирует лишнюю степень двойки рядом с будущим VLM.
+      cuda_arena_extend_strategy: kSameAsRequested
+      trt_workspace_mb: null
+      # CUDA arena и TensorRT workspace не ограничивают всю VRAM процесса: веса, контекст,
+      # декодеры и другие сессии измеряются дополнительно под общей нагрузкой.
     # onnxruntime — разработка и CI (CPU); tensorrt — объект (FP16-движок строится на месте).
     # auto: TensorRT FP16 в образе GPU (движок строится на месте, SPEC.md §5.7), иначе CUDA, иначе CPU.
     runtime: auto
@@ -245,6 +254,7 @@ bench:
   model_batches: [1, 2, 4, 8, 16]   # до pipeline.inference.max_batch
   model_warmup: 5              # прогрев: первые вызовы (сборка движка TensorRT, аллокации) не считаются
   model_iterations: 30         # достаточно для p95 на 30 точках при CV < 10% (проверяется отчётом)
+  vram_sample_interval_s: 0.01  # опрос NVML 100 Гц внутри загрузки/инференса; более короткие пики могут быть пропущены
   vlm_concurrency: [1, 2, 4, 8]
   vlm_requests_per_level: 16
   vlm_timeout_s: 30            # один запрос арбитра дольше 30 с — VLM считается неработоспособным
@@ -271,4 +281,3 @@ capacity:
   llm_min_mb: 14000            # оценка: Qwen3-VL-8B FP8 ≈ 9 ГБ весов + KV-кэш на несколько запросов (Фаза 4)
   ram_base_mb: 8192            # оценка: Postgres, Qdrant, Valkey, сервисы Qoima без видеобуфера
   ram_max_ratio: 0.7           # базовые сервисы + GOP-буферы ≤ 70% ОЗУ: запас ОС и кэшу файлов (клипы)
-

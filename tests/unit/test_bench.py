@@ -15,9 +15,26 @@ from shared.config import QoimaConfig
 from shared.schemas import BenchResult, DecodeBackend, VLMVerdict
 from tests.unit.test_inference import const_model, write_manifest
 from vision_pipeline.bench import __main__ as bench_main
+from vision_pipeline.bench import hardware
 from vision_pipeline.bench.decode import decode_fps, measure_decode, synthetic_sample
 from vision_pipeline.bench.models import measure_model
 from vision_pipeline.bench.vlm import arbiter_request, measure_vlm
+
+
+@pytest.mark.parametrize("label", ["CUDA Version", "CUDA UMD Version"])
+def test_gpu_fingerprint_reads_cuda_driver_version(
+    monkeypatch: pytest.MonkeyPatch, label: str
+) -> None:
+    def smi(*args: str) -> str:
+        if args:
+            return "0, NVIDIA GeForce RTX 5070 Ti, 16303, 610.88\n"
+        return f"| NVIDIA-SMI 610.57.01 KMD Version: 610.88 {label}: 13.3 |"
+
+    monkeypatch.setattr(hardware, "_nvidia_smi", smi)
+    monkeypatch.setattr(hardware, "nvdec_available", lambda: False)
+    gpu = hardware.gpus()[0]
+    assert gpu.cuda_version == "13.3"
+    assert gpu.vram_total_mb == 16303
 
 
 def quick(config: QoimaConfig) -> object:
