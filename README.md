@@ -51,6 +51,8 @@ qoima doctor
 
 Стенд на Windows с GPU (WSL2, для проверки) — [docs/WINDOWS.md](docs/WINDOWS.md).
 
+Промпты следующих фаз для работы на машине с RTX 5070 Ti (16 ГБ) — [docs/prompts/](docs/prompts/README.md).
+
 Разработка без GPU (macOS/Linux, Docker):
 
 ```bash

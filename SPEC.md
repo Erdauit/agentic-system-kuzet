@@ -15,7 +15,7 @@ ui_languages: [ru, kk]               # язык интерфейса, чата �
 timezone: Asia/Almaty
 cameras_expected: <N>                # ориентировочное количество камер на первом объекте
 camera_access: <rtsp напрямую | через NVR/регистратор>
-gpu: <модель и количество, или "unknown" — тогда планировщик мощности всё определит сам>
+gpu: 1× NVIDIA RTX 5070 Ti, 16 ГБ   # меньше 24 ГБ из §4.1 — поправки в docs/prompts/README.md
 first_use_cases: [fall_and_lying, red_zone, smoke_fire]   # в порядке приоритета
 alert_channels: [web_ui, telegram, local_relay]           # local_relay = сирена/реле по HTTP или Modbus
 internet_on_site: <none | restricted | yes>
